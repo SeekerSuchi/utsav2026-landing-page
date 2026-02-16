@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* ===== Theme Variables ===== */
+@theme {
+  /* The Cultural Palette */
+  --color-fest-bg: #1a0b1c;        /* Deep festive purple/black */
+  --color-fest-primary: #ff5e57;   /* Vibrant Red/Orange */
+  --color-fest-secondary: #ffa801; /* Marigold Yellow */
+  --color-fest-accent: #0fbcf9;    /* Sky Blue */
+  --color-fest-text: #ffffff;
+
+  --animate-spin-slow: spin 60s linear infinite;
+}
+
+/* ===== Global Styles ===== */
+body {
+  background-color: var(--color-fest-bg);
+  color: var(--color-fest-text);
+}
