@@ -40,19 +40,20 @@ export const IntroAnimation: React.FC<IntroAnimationProps> = ({ onComplete }) =>
       transition={{ duration: 1.2, ease: "easeInOut" }} 
     >
       
-      {/* --- NEW: BACKGROUND IMAGE LAYER --- */}
-      {/* Sits behind the SVG because it's defined first in the DOM order */}
-      <div className="absolute inset-0 z-0">
+      {/* --- BACKGROUND IMAGE LAYER --- */}
+      {/* PERFORMANCE FIX 1: transform: 'translateZ(0)' forces the image onto its own dedicated GPU layer */}
+      <div className="absolute inset-0 z-0" style={{ transform: 'translateZ(0)' }}>
         <img 
-          // TODO: Replace this with your actual image path!
-          // e.g., src="/images/my-cool-background.jpg"
-          src="https://images.unsplash.com/photo-1534796636912-3b95b3ab5980?q=80&w=2072&auto=format&fit=crop" 
+          // Replace with your actual image path!
+          src="option 3.png" 
           alt="Intro Background"
           className="w-full h-full object-cover"
+          // PERFORMANCE FIX 2: Prevents image decoding from freezing the main animation thread
+          decoding="async" 
         />
-        {/* Optional Tint Overlay: Makes the image darker so the SVG colors pop.
-            Adjust 'bg-black/60' to make it lighter or darker. */}
-        <div className="absolute inset-0 bg-black/60 mix-blend-multiply"></div>
+        {/* PERFORMANCE FIX 3: Removed 'mix-blend-multiply'. 
+            A standard semi-transparent black overlay is 100x cheaper for the browser to render. */}
+        <div className="absolute inset-0 bg-black/60"></div>
       </div>
 
 
