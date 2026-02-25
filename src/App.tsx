@@ -36,6 +36,11 @@ export default function App() {
         scrub: true,
         pin: true,
         pinSpacing: false,
+        snap: {
+          snapTo: [0, 1],
+          duration: { min: 0.25, max: 0.6 },
+          ease: 'power2.inOut',
+        },
       },
     })
     heroTl.to(hero, {
