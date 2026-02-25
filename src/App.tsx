@@ -4,7 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import HeroSection from './sections/HeroSection'
 import LogoSection from './sections/LogoSection'
 import CountdownSection from './sections/CountdownSection'
-import DarkVeil from './components/DarkVeil'
+import LightPillar from './components/LightPillar'
 import './index.css'
 
 // Lazy-load below-fold sections to reduce initial bundle size
@@ -55,16 +55,24 @@ export default function App() {
 
   return (
     <div style={{ background: '#07050a' }}>
-      {/* Fixed DarkVeil background behind all sections */}
+      {/* Fixed LightPillar background behind all sections */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
-        <DarkVeil
-          hueShift={340}
-          noiseIntensity={0}
-          scanlineIntensity={0}
-          speed={0.5}
-          scanlineFrequency={0}
-          warpAmount={0}
-        />
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+          <LightPillar
+            topColor="#5227FF"
+            bottomColor="#FF9FFC"
+            intensity={1}
+            rotationSpeed={1}
+            glowAmount={0.002}
+            pillarWidth={3}
+            pillarHeight={0.4}
+            noiseIntensity={0.5}
+            pillarRotation={25}
+            interactive={false}
+            mixBlendMode="screen"
+            quality="high"
+          />
+        </div>
       </div>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
