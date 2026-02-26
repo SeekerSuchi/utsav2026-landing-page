@@ -7,7 +7,7 @@ import './index.css'
 // Lazy-load below-fold sections to reduce initial bundle size
 const ThemeAboutSection = lazy(() => import('./sections/ThemeAboutSection'))
 const GallerySection    = lazy(() => import('./sections/GallerySection'))
-const SponsorsSection   = lazy(() => import('./sections/SponsorsSection'))
+// const SponsorsSection   = lazy(() => import('./sections/SponsorsSection'))
 const PatronsSection    = lazy(() => import('./sections/PatronsSection'))
 const ContactSection    = lazy(() => import('./sections/ContactSection'))
 const FooterSection     = lazy(() => import('./sections/FooterSection'))
@@ -41,7 +41,7 @@ export default function App() {
         <Suspense fallback={null}>
           <ThemeAboutSection />
           <GallerySection />
-          <SponsorsSection />
+          {/* <SponsorsSection /> */}
           <PatronsSection />
           <ContactSection />
           <FooterSection />
