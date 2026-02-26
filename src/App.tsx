@@ -35,7 +35,7 @@ export default function App() {
         end: '+=100%',
         scrub: true,
         pin: true,
-        pinSpacing: false,
+        pinSpacing: true,
         snap: {
           snapTo: [0, 1],
           duration: { min: 0.25, max: 0.6 },
