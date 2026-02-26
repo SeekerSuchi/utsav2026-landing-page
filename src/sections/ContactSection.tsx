@@ -1,12 +1,6 @@
 import { motion } from 'framer-motion'
 import ShinyText from '../components/ShinyText'
-
-const fadeUp = (delay = 0) => ({
-  initial: { opacity: 0, y: 32 } as const,
-  whileInView: { opacity: 1, y: 0 } as const,
-  viewport: { once: true, amount: 0.2 } as const,
-  transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] as [number, number, number, number], delay },
-})
+import { fadeUp } from '../components/animations'
 
 /* Inline SVG icon components — eliminates react-icons dependency */
 const FacebookIcon = ({ size = 28 }: { size?: number }) => (
@@ -38,7 +32,7 @@ export default function ContactSection() {
       {/* Title */}
       <motion.h2
         {...fadeUp(0)}
-        className="mb-2 text-center font-cinzel text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-200 via-gray-400 to-gray-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.4)] sm:text-6xl md:text-7xl"
+        className="mb-2 text-center font-cinzel text-5xl font-bold text-transparent bg-clip-text bg-linear-to-r from-gray-200 via-gray-400 to-gray-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.4)] sm:text-6xl md:text-7xl"
       >
         <ShinyText
           text="Get In Touch"
@@ -62,7 +56,7 @@ export default function ContactSection() {
             className="group relative"
           >
             <div className="absolute inset-0 rounded-full bg-purple-500 opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-50" />
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-gray-400 backdrop-blur-md transition-all duration-300 group-hover:border-purple-500/50 group-hover:text-white md:h-16 md:w-16">
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/3 text-gray-400 backdrop-blur-md transition-all duration-300 group-hover:border-purple-500/50 group-hover:text-white md:h-16 md:w-16">
               <social.Icon size={28} />
             </div>
           </a>
@@ -72,7 +66,7 @@ export default function ContactSection() {
       {/* Address glass panel */}
       <motion.div
         {...fadeUp(0.2)}
-        className="mt-12 w-full rounded-3xl border border-gray-500/20 bg-white/[0.02] p-8 text-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-500 hover:border-purple-500/30 md:w-1/2"
+        className="mt-12 w-full rounded-3xl border border-gray-500/20 bg-white/2 p-8 text-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-500 hover:border-purple-500/30 md:w-1/2"
       >
         <p className="text-lg font-light leading-relaxed text-gray-300 md:text-xl">
           <span className="font-semibold text-gray-100 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">

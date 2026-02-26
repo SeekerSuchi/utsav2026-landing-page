@@ -5,6 +5,10 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const EVENT_DATE = new Date('2026-04-17T00:00:00')
+
+// Hoisted outside component — never changes
+const START_VALUE = 999
+const DIGIT_LABELS = ['0','1','2','3','4','5','6','7','8','9'] as const
 function getDaysLeft(): number {
   const now = new Date()
   const diff = EVENT_DATE.getTime() - now.getTime()
@@ -98,7 +102,7 @@ function RollDigit({ digit, fontSize }: RollDigitProps) {
           willChange: 'transform',
         }}
       >
-        {(['0','1','2','3','4','5','6','7','8','9'] as const).map((n) => (
+        {DIGIT_LABELS.map((n) => (
           <span
             key={n}
             style={{
@@ -239,7 +243,6 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
   const bg1Ref       = useRef<HTMLDivElement>(null)
 
   // Reverse-countdown display value (animates from START_VALUE down to actual days)
-  const START_VALUE = 999
   const daysLeft    = getDaysLeft()
   const [displayDays, setDisplayDays] = useState(START_VALUE)
 

@@ -40,9 +40,14 @@ export default function App() {
         <CountdownSection />
         <Suspense fallback={null}>
           <ThemeAboutSection />
+        </Suspense>
+        <Suspense fallback={null}>
           <GallerySection />
-          {/* <SponsorsSection /> */}
+        </Suspense>
+        <Suspense fallback={null}>
           <PatronsSection />
+        </Suspense>
+        <Suspense fallback={null}>
           <ContactSection />
           <FooterSection />
         </Suspense>
