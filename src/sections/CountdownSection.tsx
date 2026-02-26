@@ -4,8 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const EVENT_DATE = new Date('2026-10-01T00:00:00')
-
+const EVENT_DATE = new Date('2026-04-17T00:00:00')
 function getDaysLeft(): number {
   const now = new Date()
   const diff = EVENT_DATE.getTime() - now.getTime()
@@ -85,7 +84,7 @@ function RollDigit({ digit, fontSize }: RollDigitProps) {
       fontWeight: 700,
       fontVariantNumeric: 'lining-nums tabular-nums',
       fontFeatureSettings: '"lnum" 1, "tnum" 1',
-      color: '#fff',
+      color: '#C0C0C0',
       position: 'relative',
     }}>
       {/* Track: 10 digits (0-9) stacked vertically, each 1em */}
@@ -132,7 +131,7 @@ const subUnitLabelStyle: React.CSSProperties = {
   fontSize: 'clamp(0.55rem, 1vw, 0.72rem)',
   letterSpacing: '0.3em',
   textTransform: 'uppercase',
-  color: 'rgba(222,91,234,0.65)',
+color: '#D4AF37'
 }
 
 const subUnitContainerStyle: React.CSSProperties = {
@@ -197,8 +196,7 @@ const headlineStyle: React.CSSProperties = {
   fontSize: 'clamp(1rem, 2.4vw, 1.45rem)',
   letterSpacing: '0.18em',
   textTransform: 'uppercase',
-  color: 'rgba(255,255,255,0.72)',
-}
+color: '#D4AF37',}
 
 const daysCounterStyle: React.CSSProperties = { lineHeight: 1, marginBottom: '0.5rem' }
 
@@ -209,8 +207,7 @@ const daysLabelStyle: React.CSSProperties = {
   fontSize: 'clamp(0.65rem, 1.3vw, 0.85rem)',
   letterSpacing: '0.38em',
   textTransform: 'uppercase',
-  color: 'rgba(222,91,234,0.75)',
-}
+color: '#D4AF37',}
 
 const separatorStyle: React.CSSProperties = {
   width: 'min(380px, 60vw)',
@@ -225,15 +222,7 @@ const subRowStyle: React.CSSProperties = {
   alignItems: 'flex-end',
 }
 
-const dateHintStyle: React.CSSProperties = {
-  marginTop: '3rem',
-  fontFamily: '"Inter", sans-serif',
-  fontWeight: 300,
-  fontSize: 'clamp(0.58rem, 1vw, 0.7rem)',
-  letterSpacing: '0.25em',
-  textTransform: 'uppercase',
-  color: 'rgba(255,255,255,0.28)',
-}
+
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
@@ -365,10 +354,7 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
           <SubUnit value={time.seconds} label="Seconds" />
         </div>
      
-        {/* Event date hint */}
-        <p style={dateHintStyle}>
-          October 1, 2026
-        </p>
+ 
            {/* Explore Events Button */}
         <button className="explore-events-btn">
           Explore Events
