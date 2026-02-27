@@ -41,7 +41,7 @@ function getTimeLeft() {
 
 // ── Components ───────────────────────────────────────────────────────────────
 
-const RollNumber = memo(function RollNumber({ value, fontSize = 'clamp(3.5rem, 12vw, 10rem)' }: { value: string, fontSize?: string }) {
+const RollNumber = memo(function RollNumber({ value, fontSize = 'clamp(2.5rem, 9vw, 7rem)' }: { value: string, fontSize?: string }) {
   const digits = value.split('')
   return (
     <span style={{ display: 'inline-flex', gap: '0.04em' }}>
@@ -225,7 +225,7 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
         </div>
 
         {/* Days Counter */}
-        <div style={{ lineHeight: 1, marginBottom: '0.5rem' }}>
+        <div style={{ lineHeight: 1, }}>
           <RollNumber value={pad(displayDays, 3)} />
         </div>
 
@@ -241,7 +241,7 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
           <SubUnit value={time.seconds} label="Seconds" />
         </div>
      
-        <button className="explore-events-btn" style={{ marginTop: '3rem' }}>
+        <button className="explore-events-btn" style={{ marginTop: '1rem',marginBottom:"2rem" }}>
           Explore Events
         </button>
       </div>

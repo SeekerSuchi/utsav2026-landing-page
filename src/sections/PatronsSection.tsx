@@ -1,6 +1,4 @@
-import { motion } from 'framer-motion'
 import ShinyText from '../components/ShinyText'
-import { fadeUp } from '../components/animations'
 import { GlassCard } from '../components/GlassCard'
 
 /* ── Patron card ──────────────────────────────────────────────────────────── */
@@ -33,12 +31,9 @@ function PatronCard({
 
 /* ── Section title ────────────────────────────────────────────────────────── */
 
-function SectionTitle({ text, delay = 0 }: { text: string; delay?: number }) {
+function SectionTitle({ text }: { text: string; delay?: number }) {
   return (
-    <motion.h3
-      {...fadeUp(delay)}
-      className="mb-8 text-center font-cinzel text-4xl font-bold text-transparent bg-clip-text bg-linear-to-r from-gray-200 via-gray-400 to-gray-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.3)] sm:text-5xl"
-    >
+    <h3 className="mb-8 text-center font-cinzel text-4xl font-bold text-transparent bg-clip-text bg-linear-to-r from-gray-200 via-gray-400 to-gray-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.3)] sm:text-5xl">
       <ShinyText
         text={text}
         speed={4}
@@ -47,7 +42,7 @@ function SectionTitle({ text, delay = 0 }: { text: string; delay?: number }) {
         spread={120}
         yoyo
       />
-    </motion.h3>
+    </h3>
   )
 }
 

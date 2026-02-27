@@ -64,8 +64,8 @@ export default function ContactSection() {
       </motion.div>
 
       {/* Address glass panel */}
-      <motion.div
-        {...fadeUp(0.2)}
+      <div
+    
         className="mt-12 w-full rounded-3xl border border-gray-500/20 bg-white/2 p-8 text-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-500 hover:border-purple-500/30 md:w-1/2"
       >
         <p className="text-lg font-light leading-relaxed text-gray-300 md:text-xl">
@@ -84,7 +84,7 @@ export default function ContactSection() {
             utsav@bmsce.ac.in
           </a>
         </p>
-      </motion.div>
+      </div>
     </section>
   )
 }

@@ -1,5 +1,3 @@
-import { motion } from 'framer-motion'
-
 /* ── Liquid-glass card wrapper ────────────────────────────────────────────── */
 
 export function GlassCard({
@@ -11,7 +9,7 @@ export function GlassCard({
   delay?: number
 }) {
   return (
-    <motion.article
+    <article
       className={`
         relative overflow-hidden rounded-[1.75rem]
         border border-white/10
@@ -25,6 +23,6 @@ export function GlassCard({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-white/25 to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-linear-to-b from-transparent via-white/15 to-transparent" />
       {children}
-    </motion.article>
+    </article>
   )
 }
