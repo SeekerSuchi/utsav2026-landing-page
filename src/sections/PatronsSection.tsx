@@ -37,7 +37,7 @@ function SectionTitle({ text, delay = 0 }: { text: string; delay?: number }) {
   return (
     <motion.h3
       {...fadeUp(delay)}
-      className="mb-8 text-center font-cinzel text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-200 via-gray-400 to-gray-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.3)] sm:text-5xl"
+      className="mb-8 text-center font-cinzel text-4xl font-bold text-transparent bg-clip-text bg-linear-to-r from-gray-200 via-gray-400 to-gray-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.3)] sm:text-5xl"
     >
       <ShinyText
         text={text}
@@ -114,8 +114,8 @@ export default function PatronsSection() {
       </div>
 
       {/* Ambient glows */}
-      <div className="pointer-events-none absolute top-1/4 right-0 h-[400px] w-[400px] rounded-full bg-purple-900/10 blur-[100px]" />
-      <div className="pointer-events-none absolute bottom-1/4 left-0 h-[400px] w-[400px] rounded-full bg-purple-900/10 blur-[100px]" />
+      <div className="pointer-events-none absolute top-1/4 right-0 h-100 w-100 rounded-full bg-purple-900/10 blur-[100px]" />
+      <div className="pointer-events-none absolute bottom-1/4 left-0 h-100 w-100 rounded-full bg-purple-900/10 blur-[100px]" />
     </section>
   )
 }

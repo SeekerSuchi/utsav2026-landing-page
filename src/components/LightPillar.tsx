@@ -1,6 +1,16 @@
 import { useRef, useEffect } from 'react';
 import type { CSSProperties } from 'react';
-import * as THREE from 'three';
+import {
+  WebGLRenderer,
+  ShaderMaterial,
+  Scene,
+  OrthographicCamera,
+  PlaneGeometry,
+  Mesh,
+  Vector2,
+  Vector3,
+  Color,
+} from 'three';
 
 // ─── Module-level constants (computed once, shared across all instances) ─────
 
@@ -13,10 +23,10 @@ const VERTEX_SHADER = `
 `;
 
 // Reusable Color instance to avoid allocations
-const _tmpColor = new THREE.Color();
-function parseColor(hex: string): THREE.Vector3 {
+const _tmpColor = new Color();
+function parseColor(hex: string): Vector3 {
   _tmpColor.set(hex);
-  return new THREE.Vector3(_tmpColor.r, _tmpColor.g, _tmpColor.b);
+  return new Vector3(_tmpColor.r, _tmpColor.g, _tmpColor.b);
 }
 
 // Pre-compute wave rotation values (constant 0.4 rad across all instances)
@@ -188,11 +198,11 @@ interface LightPillarProps {
 
 /** Consolidated WebGL state — single ref instead of 7 individual refs */
 interface GLState {
-  renderer: THREE.WebGLRenderer;
-  material: THREE.ShaderMaterial;
-  scene: THREE.Scene;
-  camera: THREE.OrthographicCamera;
-  geometry: THREE.PlaneGeometry;
+  renderer: WebGLRenderer;
+  material: ShaderMaterial;
+  scene: Scene;
+  camera: OrthographicCamera;
+  geometry: PlaneGeometry;
   raf: number;
   time: number;
   disposed: boolean;
@@ -215,7 +225,7 @@ export default function LightPillar({
 }: LightPillarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const glRef = useRef<GLState | null>(null);
-  const mouseRef = useRef(new THREE.Vector2(0, 0));
+  const mouseRef = useRef(new Vector2(0, 0));
   // Mutable ref so the animation loop always reads the latest value without teardown
   const rotationSpeedRef = useRef(rotationSpeed);
   useEffect(() => { rotationSpeedRef.current = rotationSpeed; }, [rotationSpeed]);
@@ -234,12 +244,12 @@ export default function LightPillar({
     const settings = QUALITY_SETTINGS[effectiveQuality];
 
     // Scene
-    const scene = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const scene = new Scene();
+    const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    let renderer: THREE.WebGLRenderer;
+    let renderer: WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({
+      renderer = new WebGLRenderer({
         antialias: false,
         alpha: true,
         powerPreference: effectiveQuality === 'low' ? 'low-power' : 'high-performance',
@@ -258,12 +268,12 @@ export default function LightPillar({
     // Pre-compute pillar rotation
     const pillarRotRad = (pillarRotation * Math.PI) / 180;
 
-    const material = new THREE.ShaderMaterial({
+    const material = new ShaderMaterial({
       vertexShader: VERTEX_SHADER,
       fragmentShader: buildFragmentShader(settings.iterations, settings.waveIterations, settings.stepMultiplier),
       uniforms: {
         uTime:           { value: 0 },
-        uResolution:     { value: new THREE.Vector2(width, height) },
+        uResolution:     { value: new Vector2(width, height) },
         uMouse:          { value: mouseRef.current },
         uTopColor:       { value: parseColor(topColor) },
         uBottomColor:    { value: parseColor(bottomColor) },
@@ -285,8 +295,8 @@ export default function LightPillar({
       depthTest: false,
     });
 
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    scene.add(new THREE.Mesh(geometry, material));
+    const geometry = new PlaneGeometry(2, 2);
+    scene.add(new Mesh(geometry, material));
 
     const gl: GLState = { renderer, material, scene, camera, geometry, raf: 0, time: 0, disposed: false };
     glRef.current = gl;
