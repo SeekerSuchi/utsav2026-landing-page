@@ -32,12 +32,11 @@ function getTimeLeft() {
 // ── Roll number component ─────────────────────────────────────────────────────
 
 interface RollProps {
-  value: string       // e.g. "220" or "14"
+  value: string       
   fontSize?: string
 }
 
-/** Vertically rolls digit columns to the target value. */
-const RollNumber = memo(function RollNumber({ value, fontSize = 'clamp(5rem, 14vw, 10rem)' }: RollProps) {
+const RollNumber = memo(function RollNumber({ value, fontSize = 'clamp(3.5rem, 12vw, 10rem)' }: RollProps) {
   const digits = value.split('')
   return (
     <span style={{ display: 'inline-flex', gap: '0.04em' }}>
@@ -66,8 +65,6 @@ function RollDigit({ digit, fontSize }: RollDigitProps) {
       prevDigit.current = digit
       return
     }
-    // Each digit in the track is 1em tall (set via lineHeight)
-    // We animate Y from -from*1em to -to*1em
     gsap.fromTo(
       track,
       { y: `-${from}em` },
@@ -91,7 +88,6 @@ function RollDigit({ digit, fontSize }: RollDigitProps) {
       color: '#C0C0C0',
       position: 'relative',
     }}>
-      {/* Track: 10 digits (0-9) stacked vertically, each 1em */}
       <span
         ref={trackRef}
         style={{
@@ -135,7 +131,7 @@ const subUnitLabelStyle: React.CSSProperties = {
   fontSize: 'clamp(0.55rem, 1vw, 0.72rem)',
   letterSpacing: '0.3em',
   textTransform: 'uppercase',
-color: '#D4AF37'
+  color: '#D4AF37'
 }
 
 const subUnitContainerStyle: React.CSSProperties = {
@@ -145,7 +141,7 @@ const subUnitContainerStyle: React.CSSProperties = {
 const SubUnit = memo(function SubUnit({ value, label }: UnitProps) {
   return (
     <div style={subUnitContainerStyle}>
-      <RollNumber value={pad(value)} fontSize='clamp(2rem, 5vw, 3.5rem)' />
+      <RollNumber value={pad(value)} fontSize='clamp(1.5rem, 5vw, 3.5rem)' />
       <span style={subUnitLabelStyle}>{label}</span>
     </div>
   )
@@ -191,16 +187,33 @@ const contentStyle: React.CSSProperties = {
   gap: 0,
   padding: '2rem 1.5rem',
   textAlign: 'center',
+  marginTop: '8vh', // Helps shift the entire block down relative to the viewport
+}
+
+// Added new Logo Style
+const logoStyle: React.CSSProperties = {
+  width: 'clamp(120px, 18vw, 250px)', 
+  height: 'auto',
+  marginBottom: '1rem', 
+  
+  // ADD THIS to push the logo down:
+  marginTop: '3rem', // Increase to 4rem or 5rem if you want it even lower!
+  
+  objectFit: 'contain',
+  mixBlendMode: 'screen',
+  // Removed the transform property so GSAP can do its job without conflicts
 }
 
 const headlineStyle: React.CSSProperties = {
-  margin: '0 0 2.4rem 0',
+  // FIXED typo here (changed '2' to '0'):
+  margin: '2rem 0 2.4rem 0', 
   fontFamily: '"Cinzel", "Playfair Display", serif',
   fontWeight: 600,
   fontSize: 'clamp(1rem, 2.4vw, 1.45rem)',
   letterSpacing: '0.18em',
   textTransform: 'uppercase',
-color: '#D4AF37',}
+  color: '#D4AF37',
+}
 
 const daysCounterStyle: React.CSSProperties = { lineHeight: 1, marginBottom: '0.5rem' }
 
@@ -211,7 +224,8 @@ const daysLabelStyle: React.CSSProperties = {
   fontSize: 'clamp(0.65rem, 1.3vw, 0.85rem)',
   letterSpacing: '0.38em',
   textTransform: 'uppercase',
-color: '#D4AF37',}
+  color: '#D4AF37',
+}
 
 const separatorStyle: React.CSSProperties = {
   width: 'min(380px, 60vw)',
@@ -226,8 +240,6 @@ const subRowStyle: React.CSSProperties = {
   alignItems: 'flex-end',
 }
 
-
-
 // ── Section ───────────────────────────────────────────────────────────────────
 
 interface CountdownSectionProps {
@@ -237,35 +249,35 @@ interface CountdownSectionProps {
 export default function CountdownSection({ sectionRef }: CountdownSectionProps) {
   const internalRef  = useRef<HTMLElement>(null)
   const innerRef     = useRef<HTMLDivElement>(null)
+  const logoRef      = useRef<HTMLImageElement>(null) // New ref for Logo animation
   const headlineRef  = useRef<HTMLParagraphElement>(null)
   const daysLabelRef = useRef<HTMLParagraphElement>(null)
   const subRowRef    = useRef<HTMLDivElement>(null)
   const bg1Ref       = useRef<HTMLDivElement>(null)
 
-  // Reverse-countdown display value (animates from START_VALUE down to actual days)
   const daysLeft    = getDaysLeft()
   const [displayDays, setDisplayDays] = useState(START_VALUE)
 
-  // Live clock state
   const [time, setTime] = useState(getTimeLeft)
 
-  // ── Entrance: parallax bg + content fade-in ───────────────────────────────
   useEffect(() => {
     const section = (sectionRef ?? internalRef).current
     const inner   = innerRef.current
+    const logo    = logoRef.current
     const bg1     = bg1Ref.current
     const headline   = headlineRef.current
     const daysLabel  = daysLabelRef.current
     const subRow     = subRowRef.current
-    if (!section || !inner || !bg1 || !headline || !daysLabel || !subRow) return
+    
+    if (!section || !inner || !bg1 || !headline || !daysLabel || !subRow || !logo) return
 
-    // Initial states
+    // Initial states (added logo)
     gsap.set(inner,    { opacity: 0, y: 40 })
+    gsap.set(logo,     { opacity: 0, y: 20, scale: 0.9 })
     gsap.set(headline, { opacity: 0, y: 24 })
     gsap.set(daysLabel,{ opacity: 0, y: 16 })
     gsap.set(subRow,   { opacity: 0, y: 20 })
 
-    // ── BG parallax on scroll ──
     ScrollTrigger.create({
       trigger: section,
       start: 'top 80%',
@@ -276,7 +288,6 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
       },
     })
 
-    // ── Content entrance (scroll-triggered one-shot) ──
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: section,
@@ -286,9 +297,10 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
     })
 
     tl.to(inner,    { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0)
-    tl.to(headline, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 0.15)
+    // Animate logo first
+    tl.to(logo,     { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: 'power3.out' }, 0.1)
+    tl.to(headline, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out' }, 0.25)
 
-    // ── Reverse countdown: days roll from START_VALUE → actual ──
     tl.call(() => {
       const obj = { val: START_VALUE }
       gsap.to(obj, {
@@ -299,10 +311,10 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
           setDisplayDays(Math.round(obj.val))
         },
       })
-    }, [], 0.3)
+    }, [], 0.4) // Slightly delayed to accommodate the logo
 
-    tl.to(daysLabel, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.5)
-    tl.to(subRow,    { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.8)
+    tl.to(daysLabel, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.6)
+    tl.to(subRow,    { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.9)
 
     return () => {
       ScrollTrigger.getAll()
@@ -312,18 +324,13 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
     }
   }, [sectionRef, daysLeft])
 
-  // ── Live clock tick ──────────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => setTime(getTimeLeft()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <section
-      ref={sectionRef ?? internalRef}
-      style={sectionStyle}
-    >
+    <section ref={sectionRef ?? internalRef} style={sectionStyle}>
       {/* Wallpaper BG 1 */}
       <div ref={bg1Ref} style={bgStyle} />
 
@@ -336,6 +343,16 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
         <p ref={headlineRef} style={headlineStyle}>
           Utsav · BMSCE · 2026
         </p>
+        
+        {/* LOGO ADDED HERE */}
+        <img 
+          ref={logoRef}
+          src="/U26 LOGO-02.png" 
+          alt="Utsav 2026 Logo" 
+          style={logoStyle} 
+        />
+
+        
 
         {/* Giant days counter */}
         <div style={daysCounterStyle}>
@@ -357,8 +374,7 @@ export default function CountdownSection({ sectionRef }: CountdownSectionProps) 
           <SubUnit value={time.seconds} label="Seconds" />
         </div>
      
- 
-           {/* Explore Events Button */}
+        {/* Explore Events Button */}
         <button className="explore-events-btn">
           Explore Events
         </button>
