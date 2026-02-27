@@ -1,6 +1,4 @@
-import { motion } from 'framer-motion'
 import ShinyText from '../components/ShinyText'
-import { fadeUp } from '../components/animations'
 import { GlassCard } from '../components/GlassCard'
 
 /* ── Section ──────────────────────────────────────────────────────────────── */
@@ -15,13 +13,12 @@ export default function ThemeAboutSection() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start lg:gap-8">
 
           {/* ──────── Column 1 — Theme (Utsav Ananta) ──────── */}
-          <GlassCard delay={0} className="p-8 sm:p-10 lg:-mt-3">
+          <GlassCard className="p-8 sm:p-10 lg:-mt-3">
             {/* Warm accent glow inside card */}
             <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-amber-300/9 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-20 -left-12 h-44 w-44 rounded-full bg-rose-300/7 blur-3xl" />
 
-            <motion.p
-              {...fadeUp(0.1)}
+            <p
               className="relative mb-3 text-[0.7rem] font-medium uppercase tracking-[0.4em] text-amber-200/70"
             >
               <ShinyText
@@ -32,10 +29,9 @@ export default function ThemeAboutSection() {
                 spread={100}
                 yoyo
               />
-            </motion.p>
+            </p>
 
-            <motion.h2
-              {...fadeUp(0.15)}
+            <h2
               id="theme-heading"
               className="relative mb-6 font-cinzel text-3xl font-bold leading-tight text-transparent bg-clip-text bg-gradient-to-r from-gray-200 via-gray-400 to-gray-600 drop-shadow-[0_0_15px_rgba(147,51,234,0.3)] sm:text-4xl"
             >
@@ -47,19 +43,14 @@ export default function ThemeAboutSection() {
                 spread={120}
                 yoyo
               />
-            </motion.h2>
+            </h2>
 
             {/* Decorative accent line */}
-            <motion.div
-              initial={{ scaleX: 0 }}
-              whileInView={{ scaleX: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
+            <div
               className="mb-7 h-px w-16 origin-left bg-linear-to-r from-amber-300/50 to-transparent"
             />
 
-            <motion.p
-              {...fadeUp(0.25)}
+            <p
               className="relative max-w-prose font-inter text-[0.95rem] leading-[1.85] text-white/80 sm:text-base sm:leading-8"
             >
               A grand celebration where imagination knows no bounds and creativity takes
@@ -70,17 +61,16 @@ export default function ThemeAboutSection() {
               skill. Join us as we transform our campus into a canvas of colors, rhythms,
               and energy — because every moment at Utsav Ananta is a celebration of
               creativity that never ends.
-            </motion.p>
+            </p>
           </GlassCard>
 
           {/* ──────── Column 2 — About Us (BMSCE) ──────── */}
-          <GlassCard delay={0.12} className="p-8 sm:p-10 lg:mt-8">
+          <GlassCard className="p-8 sm:p-10 lg:mt-8">
             {/* Cool-toned accent glow */}
             <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-slate-300/6 blur-3xl" />
 
             {/* Header row: logo + titles */}
-            <motion.div
-              {...fadeUp(0.18)}
+            <div
               className="relative mb-7 flex items-center gap-4 border-b border-white/10 pb-5"
             >
               <img
@@ -113,10 +103,10 @@ export default function ThemeAboutSection() {
                   />
                 </h3>
               </div>
-            </motion.div>
+            </div>
 
             <div className="relative space-y-5 font-inter text-[0.95rem] leading-[1.85] text-white/75 sm:text-base sm:leading-8">
-              <motion.p {...fadeUp(0.26)}>
+              <p>
                 Founded in 1946, B.&thinsp;M.&thinsp;S. College of Engineering (BMSCE) stands as
                 an early trailblazer in engineering education. Envisioned by the late
                 Sri B.&thinsp;M.&thinsp;Sreenivasaiah, the college was established in
@@ -124,14 +114,14 @@ export default function ThemeAboutSection() {
                 education in Bengaluru. This dream was passionately pursued by his son,
                 the late Sri B.&thinsp;S.&thinsp;Narayan, who was committed to providing
                 quality education to students globally.
-              </motion.p>
+              </p>
 
-              <motion.p {...fadeUp(0.32)}>
+              <p>
                 Today, BMSCE has grown to offer 18 undergraduate and 13 postgraduate
                 programs across various engineering and management fields. The college
                 boasts a team of highly qualified faculty and staff, dedicated to
                 delivering outstanding education while keeping pace with the future.
-              </motion.p>
+              </p>
             </div>
           </GlassCard>
 

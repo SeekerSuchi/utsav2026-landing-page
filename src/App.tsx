@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState, lazy, Suspense } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import HeroSection from './sections/HeroSection'
 import LogoSection from './sections/LogoSection'
 import CountdownSection from './sections/CountdownSection'
 import LightPillar from './components/LightPillar'
@@ -9,14 +8,14 @@ import './index.css'
 
 // Lazy-load below-fold sections to reduce initial bundle size
 const ThemeAboutSection = lazy(() => import('./sections/ThemeAboutSection'))
-const GallerySection    = lazy(() => import('./sections/GallerySection'))
-const SponsorsSection   = lazy(() => import('./sections/SponsorsSection'))
-const PatronsSection    = lazy(() => import('./sections/PatronsSection'))
-const ContactSection    = lazy(() => import('./sections/ContactSection'))
-const FooterSection     = lazy(() => import('./sections/FooterSection'))
+const GallerySection = lazy(() => import('./sections/GallerySection'))
+const SponsorsSection = lazy(() => import('./sections/SponsorsSection'))
+const PatronsSection = lazy(() => import('./sections/PatronsSection'))
+const ContactSection = lazy(() => import('./sections/ContactSection'))
+const FooterSection = lazy(() => import('./sections/FooterSection'))
 
 export default function App() {
-  const heroRef      = useRef<HTMLElement>(null)
+  const heroRef = useRef<HTMLElement>(null)
   const countdownRef = useRef<HTMLElement>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -82,7 +81,6 @@ export default function App() {
 
       <div style={{ position: 'relative', zIndex: 1 }}>
         <LogoSection onAnimationComplete={() => setLoaded(true)} />
-        <HeroSection sectionRef={heroRef} nextSectionRef={countdownRef} />
         <CountdownSection sectionRef={countdownRef} />
         <Suspense fallback={null}>
           <ThemeAboutSection />
