@@ -443,13 +443,17 @@ class App {
   boundOnTouchDown!: (e: MouseEvent | TouchEvent) => void;
   boundOnTouchMove!: (e: MouseEvent | TouchEvent) => void;
   boundOnTouchUp!: () => void;
-  boundOnMouseEnter!: () => void;
-  boundOnMouseLeave!: () => void;
+  boundUpdate: () => void;
 
   isDown: boolean = false;
   start: number = 0;
   isHovering: boolean = false;
-  autoScrollSpeed: number = 0.1; // Optimized speed for auto-rotation
+  autoScrollSpeed: number = 0.04;
+  mouseX: number = -9999;
+  mouseY: number = -9999;
+  mouseMoved: boolean = false;
+  isInView: boolean = true;
+  observer?: IntersectionObserver;
 
   constructor(
     container: HTMLElement,
@@ -468,14 +472,24 @@ class App {
     this.scrollSpeed = scrollSpeed;
     this.scroll = { ease: scrollEase, current: 0, target: 0, last: 0 };
     this.onCheckDebounce = debounce(this.onCheck.bind(this), 200);
+    this.boundUpdate = this.update.bind(this);
     this.createRenderer();
     this.createCamera();
     this.createScene();
     this.onResize();
     this.createGeometry();
     this.createMedias(items, bend, textColor, borderRadius, font);
+    this.setupVisibilityObserver();
     this.update();
     this.addEventListeners();
+  }
+
+  setupVisibilityObserver() {
+    this.observer = new IntersectionObserver(
+      (entries) => { this.isInView = entries[0].isIntersecting; },
+      { threshold: 0 }
+    );
+    this.observer.observe(this.container);
   }
 
   createRenderer() {
@@ -600,18 +614,47 @@ class App {
     this.onCheck();
   }
 
-  onMouseEnter() {
-    this.isHovering = true;
+  onContainerMouseMove(e: MouseEvent) {
+    const rect = this.container.getBoundingClientRect();
+    this.mouseX = e.clientX - rect.left;
+    this.mouseY = e.clientY - rect.top;
+    this.mouseMoved = true;
   }
 
-  onMouseLeave() {
+  onContainerMouseLeave() {
+    this.mouseX = -9999;
+    this.mouseY = -9999;
+    this.mouseMoved = false;
     this.isHovering = false;
+  }
+
+  checkCardHover() {
+    if (!this.mouseMoved) return;
+    this.mouseMoved = false;
+    if (this.mouseX < -9000) { this.isHovering = false; return; }
+    const ndcX = (this.mouseX / this.screen.width) * 2 - 1;
+    const ndcY = -((this.mouseY / this.screen.height) * 2 - 1);
+    const worldX = ndcX * (this.viewport.width / 2);
+    const worldY = ndcY * (this.viewport.height / 2);
+    let hovering = false;
+    for (const media of this.medias) {
+      if (!media.plane.visible) continue;
+      const px = media.plane.position.x;
+      const py = media.plane.position.y;
+      const hw = media.plane.scale.x / 2;
+      const hh = media.plane.scale.y / 2;
+      if (worldX >= px - hw && worldX <= px + hw && worldY >= py - hh && worldY <= py + hh) {
+        hovering = true;
+        break;
+      }
+    }
+    this.isHovering = hovering;
   }
 
   onWheel(e: Event) {
     const wheelEvent = e as WheelEvent & { wheelDelta?: number; detail?: number };
     const delta = wheelEvent.deltaY || wheelEvent.wheelDelta || wheelEvent.detail || 0;
-    
+
     // Normalize delta for smoother cross-browser feel
     const normalizedDelta = Math.sign(delta) * Math.min(Math.abs(delta), 100);
     this.scroll.target += (normalizedDelta > 0 ? this.scrollSpeed : -this.scrollSpeed) * 0.15;
@@ -645,12 +688,9 @@ class App {
   }
 
   update() {
-    // Only update if visible to save CPU/GPU
-    const rect = this.container.getBoundingClientRect();
-    const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
-    
-    if (isVisible) {
-      // Apply auto-scroll when not hovering and not dragging
+    if (this.isInView) {
+      this.checkCardHover();
+
       if (!this.isHovering && !this.isDown) {
         this.scroll.target += this.autoScrollSpeed;
       }
@@ -663,9 +703,12 @@ class App {
       this.renderer.render({ scene: this.scene, camera: this.camera });
       this.scroll.last = this.scroll.current;
     }
-    
-    this.raf = window.requestAnimationFrame(this.update.bind(this));
+
+    this.raf = window.requestAnimationFrame(this.boundUpdate);
   }
+
+  boundOnContainerMouseMove!: (e: MouseEvent) => void;
+  boundOnContainerMouseLeave!: () => void;
 
   addEventListeners() {
     this.boundOnResize = this.onResize.bind(this);
@@ -673,9 +716,9 @@ class App {
     this.boundOnTouchDown = this.onTouchDown.bind(this);
     this.boundOnTouchMove = this.onTouchMove.bind(this);
     this.boundOnTouchUp = this.onTouchUp.bind(this);
-    this.boundOnMouseEnter = this.onMouseEnter.bind(this);
-    this.boundOnMouseLeave = this.onMouseLeave.bind(this);
-    
+    this.boundOnContainerMouseMove = this.onContainerMouseMove.bind(this);
+    this.boundOnContainerMouseLeave = this.onContainerMouseLeave.bind(this);
+
     window.addEventListener('resize', this.boundOnResize);
     window.addEventListener('mousewheel', this.boundOnWheel, { passive: true });
     window.addEventListener('wheel', this.boundOnWheel, { passive: true });
@@ -685,8 +728,8 @@ class App {
     window.addEventListener('touchstart', this.boundOnTouchDown, { passive: true });
     window.addEventListener('touchmove', this.boundOnTouchMove, { passive: true });
     window.addEventListener('touchend', this.boundOnTouchUp);
-    this.container.addEventListener('mouseenter', this.boundOnMouseEnter);
-    this.container.addEventListener('mouseleave', this.boundOnMouseLeave);
+    this.container.addEventListener('mousemove', this.boundOnContainerMouseMove);
+    this.container.addEventListener('mouseleave', this.boundOnContainerMouseLeave);
   }
 
   destroy() {
@@ -700,8 +743,9 @@ class App {
     window.removeEventListener('touchstart', this.boundOnTouchDown);
     window.removeEventListener('touchmove', this.boundOnTouchMove);
     window.removeEventListener('touchend', this.boundOnTouchUp);
-    this.container.removeEventListener('mouseenter', this.boundOnMouseEnter);
-    this.container.removeEventListener('mouseleave', this.boundOnMouseLeave);
+    this.container.removeEventListener('mousemove', this.boundOnContainerMouseMove);
+    this.container.removeEventListener('mouseleave', this.boundOnContainerMouseLeave);
+    if (this.observer) this.observer.disconnect();
     if (this.renderer && this.renderer.gl && this.renderer.gl.canvas.parentNode) {
       this.renderer.gl.canvas.parentNode.removeChild(this.renderer.gl.canvas as HTMLCanvasElement);
     }

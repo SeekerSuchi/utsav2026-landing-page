@@ -6,7 +6,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
 const EVENT_DATE = new Date('2026-04-17T00:00:00')
 const START_VALUE = 999
-const DIGIT_LABELS = ['0','1','2','3','4','5','6','7','8','9'] as const
+const DIGIT_LABELS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] as const
 
 // The Layer Stack from your LogoSection (Commented out for single image switch)
 // const LAYERS = [
@@ -31,10 +31,10 @@ const pad = (n: number, digits = 2): string => {
 };
 
 function getTimeLeft() {
-  const now  = new Date()
+  const now = new Date()
   const diff = Math.max(0, EVENT_DATE.getTime() - now.getTime())
-  const days    = Math.floor(diff / (1000 * 60 * 60 * 24))
-  const hours   = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
   const seconds = Math.floor((diff % (1000 * 60)) / 1000)
   return { days, hours, minutes, seconds }
@@ -61,16 +61,16 @@ function RollDigit({ digit, fontSize }: { digit: string, fontSize: string }) {
     const track = trackRef.current
     if (!track) return
     const from = parseInt(prevDigit.current, 10)
-    const to   = parseInt(digit, 10)
-    
+    const to = parseInt(digit, 10)
+
     // Safety check: ensure digits are valid numbers
     const safeFrom = isNaN(from) ? 0 : from;
     const safeTo = isNaN(to) ? 0 : to;
 
     if (safeFrom === safeTo) return;
 
-    gsap.fromTo(track, 
-      { y: `-${safeFrom}em` }, 
+    gsap.fromTo(track,
+      { y: `-${safeFrom}em` },
       { y: `-${safeTo}em`, duration: 0.45, ease: 'power3.out', overwrite: true }
     )
     prevDigit.current = digit
@@ -101,17 +101,17 @@ const SubUnit = memo(function SubUnit({ value, label }: { value: number, label: 
 // ── Section ──────────────────────────────────────────────────────────────────
 
 export default function CountdownSection({ sectionRef }: { sectionRef?: React.RefObject<HTMLElement | null> }) {
-  const internalRef  = useRef<HTMLElement>(null)
-  const innerRef     = useRef<HTMLDivElement>(null)
+  const internalRef = useRef<HTMLElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
   const logoContainerRef = useRef<HTMLDivElement>(null)
-  
+
   // const layerRefs    = useRef<(HTMLImageElement | null)[]>([])
   const logoRef = useRef<HTMLImageElement>(null)
-  
-  const headlineRef  = useRef<HTMLParagraphElement>(null)
+
+  const headlineRef = useRef<HTMLParagraphElement>(null)
   const daysLabelRef = useRef<HTMLParagraphElement>(null)
-  const subRowRef    = useRef<HTMLDivElement>(null)
-  const bg1Ref       = useRef<HTMLDivElement>(null)
+  const subRowRef = useRef<HTMLDivElement>(null)
+  const bg1Ref = useRef<HTMLDivElement>(null)
 
   const daysLeft = getDaysLeft()
   const [displayDays, setDisplayDays] = useState(START_VALUE)
@@ -119,17 +119,17 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
 
   useEffect(() => {
     const section = (sectionRef ?? internalRef).current
-    const inner   = innerRef.current
-    const bg1     = bg1Ref.current
+    const inner = innerRef.current
+    const bg1 = bg1Ref.current
     // const layers  = layerRefs.current
-    const logo    = logoRef.current
-    
+    const logo = logoRef.current
+
     if (!section || !inner || !bg1) return
 
     // Initial states
     gsap.set(inner, { opacity: 0, y: 40 })
     // gsap.set(layers, { opacity: 0, scale: 0.9, filter: 'blur(12px)' }) // Match your logo preloader start
-    gsap.set(logo, { opacity: 0, scale: 0.9, filter: 'blur(12px)' }) 
+    gsap.set(logo, { opacity: 0, scale: 0.9, filter: 'blur(12px)' })
     gsap.set([headlineRef.current, daysLabelRef.current, subRowRef.current], { opacity: 0, y: 20 })
 
     // Parallax Background
@@ -201,17 +201,17 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
 
   return (
     <section ref={sectionRef ?? internalRef} style={{ position: 'relative', width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-      
+
       {/* Background & Overlay */}
       <div ref={bg1Ref} style={{ position: 'absolute', inset: '-10% 0', backgroundImage: 'url(/wallhaven-yxy8zk_1920x1080.webp)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(7,5,10,0.72) 0%, rgba(7,5,10,0.55) 50%, rgba(7,5,10,0.8) 100%)', zIndex: 2 }} />
 
       <div ref={innerRef} style={{ position: 'relative', zIndex: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: '5vh' }}>
-        
+
         <p ref={headlineRef} style={{ margin: '0 0 2rem 0', fontFamily: '"Cinzel", serif', fontWeight: 600, fontSize: 'clamp(1rem, 2.4vw, 1.45rem)', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#D4AF37' }}>
           Utsav · BMSCE · 2026
         </p>
-        
+
         {/* MULTI-LAYERED LOGO (Commented out) */}
         {/* <div 
           ref={logoContainerRef} 
@@ -248,14 +248,15 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
         */}
 
         {/* SINGLE LOGO */}
-        <div 
-          ref={logoContainerRef} 
-          style={{ 
-            position: 'relative', 
-            width: 'clamp(160px, 22vw, 320px)', 
+        <div
+          id="countdown-logo"
+          ref={logoContainerRef}
+          style={{
+            position: 'relative',
+            width: 'clamp(160px, 22vw, 320px)',
             marginBottom: '2rem',
             marginTop: '1.5rem',
-            transform: 'translate(-0.5%, 10%)' // Kept your manual nudge!
+            transform: 'translate(-0.5%, 10%)'
           }}
         >
           <img
@@ -285,12 +286,12 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
         <div style={{ width: 'min(380px, 60vw)', height: '1px', background: 'linear-gradient(to right, transparent, rgba(222,91,234,0.4), transparent)', marginBottom: '2.2rem' }} />
 
         <div ref={subRowRef} style={{ display: 'flex', gap: 'clamp(1.5rem, 5vw, 4rem)', alignItems: 'flex-end' }}>
-          <SubUnit value={time.hours}   label="Hours"   />
+          <SubUnit value={time.hours} label="Hours" />
           <SubUnit value={time.minutes} label="Minutes" />
           <SubUnit value={time.seconds} label="Seconds" />
         </div>
-     
-        <button className="explore-events-btn" style={{ marginTop: '1rem',marginBottom:"2rem" }}>
+
+        <button className="explore-events-btn" style={{ marginTop: '1rem', marginBottom: "2rem" }}>
           Explore Events
         </button>
       </div>
