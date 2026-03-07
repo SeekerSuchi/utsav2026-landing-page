@@ -1,740 +1,243 @@
-import { Camera, Mesh, Plane, Program, Renderer, Texture, Transform } from 'ogl';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react'
+import gsap from 'gsap'
 
-type GL = Renderer['gl'];
-
-function debounce<T extends (...args: unknown[]) => void>(func: T, wait: number) {
-  let timeout: number;
-  return function (this: unknown, ...args: Parameters<T>) {
-    window.clearTimeout(timeout);
-    timeout = window.setTimeout(() => func.apply(this, args), wait);
-  };
+// ── Utility ─────────────────────────────────────────────────────────────────
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t
 }
 
-function lerp(p1: number, p2: number, t: number): number {
-  return p1 + (p2 - p1) * t;
-}
+// ── Constants ────────────────────────────────────────────────────────────────
+const ITEM_WIDTH  = 320
+const ITEM_HEIGHT = 420
+const GAP         = 24
+const SPACING     = ITEM_WIDTH + GAP
 
-function autoBind(instance: object): void {
-  const proto = Object.getPrototypeOf(instance);
-  Object.getOwnPropertyNames(proto).forEach(key => {
-    const value = (instance as Record<string, unknown>)[key];
-    if (key !== 'constructor' && typeof value === 'function') {
-      (instance as Record<string, (...args: unknown[]) => unknown>)[key] = value.bind(instance);
-    }
-  });
-}
+// ── Default data (mirrors the OGL version) ───────────────────────────────────
+const defaultItems = [
+  { image: '/gallery/img1.webp',  text: '' },
+  { image: '/gallery/img2.webp',  text: '' },
+  { image: '/gallery/img3.webp',  text: 'Waterfall' },
+  { image: '/gallery/img4.webp',  text: 'Strawberries' },
+  { image: '/gallery/img5.webp',  text: 'Deep Diving' },
+  { image: '/gallery/img6.webp',  text: 'Train Track' },
+  { image: '/gallery/img7.webp',  text: 'Santorini' },
+  { image: '/gallery/img8.webp',  text: 'Blurry Lights' },
+  { image: '/gallery/img9.webp',  text: 'New York' },
+  { image: '/gallery/img10.webp', text: 'Good Boy' },
+  { image: '/gallery/img11.webp', text: 'Coastline' },
+]
 
-function getFontSize(font: string): number {
-  const match = font.match(/(\d+)px/);
-  return match ? parseInt(match[1], 10) : 30;
-}
-
-function createTextTexture(
-  gl: GL,
-  text: string,
-  font: string = 'bold 30px monospace',
-  color: string = 'black'
-): { texture: Texture; width: number; height: number } {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('Could not get 2d context');
-
-  context.font = font;
-  const metrics = context.measureText(text);
-  const textWidth = Math.ceil(metrics.width);
-  const fontSize = getFontSize(font);
-  const textHeight = Math.ceil(fontSize * 1.2);
-
-  canvas.width = textWidth + 20;
-  canvas.height = textHeight + 20;
-
-  context.font = font;
-  context.fillStyle = color;
-  context.textBaseline = 'middle';
-  context.textAlign = 'center';
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillText(text, canvas.width / 2, canvas.height / 2);
-
-  const texture = new Texture(gl, { generateMipmaps: false });
-  texture.image = canvas;
-  return { texture, width: canvas.width, height: canvas.height };
-}
-
-interface TitleProps {
-  gl: GL;
-  plane: Mesh;
-  renderer: Renderer;
-  text: string;
-  textColor?: string;
-  font?: string;
-}
-
-class Title {
-  gl: GL;
-  plane: Mesh;
-  renderer: Renderer;
-  text: string;
-  textColor: string;
-  font: string;
-  mesh!: Mesh;
-
-  constructor({ gl, plane, renderer, text, textColor = '#545050', font = '30px sans-serif' }: TitleProps) {
-    autoBind(this);
-    this.gl = gl;
-    this.plane = plane;
-    this.renderer = renderer;
-    this.text = text;
-    this.textColor = textColor;
-    this.font = font;
-    this.createMesh();
-  }
-
-  createMesh() {
-    const { texture, width, height } = createTextTexture(this.gl, this.text, this.font, this.textColor);
-    const geometry = new Plane(this.gl);
-    const program = new Program(this.gl, {
-      vertex: `
-        attribute vec3 position;
-        attribute vec2 uv;
-        uniform mat4 modelViewMatrix;
-        uniform mat4 projectionMatrix;
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragment: `
-        precision highp float;
-        uniform sampler2D tMap;
-        varying vec2 vUv;
-        void main() {
-          vec4 color = texture2D(tMap, vUv);
-          if (color.a < 0.1) discard;
-          gl_FragColor = color;
-        }
-      `,
-      uniforms: { tMap: { value: texture } },
-      transparent: true
-    });
-    this.mesh = new Mesh(this.gl, { geometry, program });
-    const aspect = width / height;
-    const textHeightScaled = this.plane.scale.y * 0.15;
-    const textWidthScaled = textHeightScaled * aspect;
-    this.mesh.scale.set(textWidthScaled, textHeightScaled, 1);
-    this.mesh.position.y = -this.plane.scale.y * 0.5 - textHeightScaled * 0.5 - 0.05;
-    this.mesh.setParent(this.plane);
-  }
-}
-
-interface ScreenSize {
-  width: number;
-  height: number;
-}
-
-interface Viewport {
-  width: number;
-  height: number;
-}
-
-interface MediaProps {
-  geometry: Plane;
-  gl: GL;
-  image: string;
-  index: number;
-  length: number;
-  renderer: Renderer;
-  scene: Transform;
-  screen: ScreenSize;
-  text: string;
-  viewport: Viewport;
-  bend: number;
-  textColor: string;
-  borderRadius?: number;
-  font?: string;
-}
-
-class Media {
-  extra: number = 0;
-  geometry: Plane;
-  gl: GL;
-  image: string;
-  index: number;
-  length: number;
-  renderer: Renderer;
-  scene: Transform;
-  screen: ScreenSize;
-  text: string;
-  viewport: Viewport;
-  bend: number;
-  textColor: string;
-  borderRadius: number;
-  font?: string;
-  program!: Program;
-  plane!: Mesh;
-  title!: Title;
-  scale!: number;
-  padding!: number;
-  width!: number;
-  widthTotal!: number;
-  x!: number;
-  speed: number = 0;
-  isBefore: boolean = false;
-  isAfter: boolean = false;
-  isLoaded: boolean = false;
-  isVisible: boolean = false;
-
-  constructor({
-    geometry,
-    gl,
-    image,
-    index,
-    length,
-    renderer,
-    scene,
-    screen,
-    text,
-    viewport,
-    bend,
-    textColor,
-    borderRadius = 0,
-    font
-  }: MediaProps) {
-    this.geometry = geometry;
-    this.gl = gl;
-    this.image = image;
-    this.index = index;
-    this.length = length;
-    this.renderer = renderer;
-    this.scene = scene;
-    this.screen = screen;
-    this.text = text;
-    this.viewport = viewport;
-    this.bend = bend;
-    this.textColor = textColor;
-    this.borderRadius = borderRadius;
-    this.font = font;
-    this.createShader();
-    this.createMesh();
-    this.createTitle();
-    this.onResize();
-  }
-
-  createShader() {
-    const texture = new Texture(this.gl, {
-      generateMipmaps: false,
-      minFilter: this.gl.LINEAR,
-      magFilter: this.gl.LINEAR
-    });
-    this.program = new Program(this.gl, {
-      depthTest: false,
-      depthWrite: false,
-      vertex: `
-        precision mediump float;
-        attribute vec3 position;
-        attribute vec2 uv;
-        uniform mat4 modelViewMatrix;
-        uniform mat4 projectionMatrix;
-        uniform float uTime;
-        uniform float uSpeed;
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          vec3 p = position;
-          p.z = (sin(p.x * 4.0 + uTime) * 1.5 + cos(p.y * 2.0 + uTime) * 1.5) * (0.02 + uSpeed * 0.2);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        }
-      `,
-      fragment: `
-        precision mediump float;
-        uniform vec2 uImageSizes;
-        uniform vec2 uPlaneSizes;
-        uniform sampler2D tMap;
-        uniform float uBorderRadius;
-        uniform float uAlpha;
-        varying vec2 vUv;
-        
-        float roundedBoxSDF(vec2 p, vec2 b, float r) {
-          vec2 d = abs(p) - b;
-          return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - r;
-        }
-        
-        void main() {
-          vec2 ratio = vec2(
-            min((uPlaneSizes.x / uPlaneSizes.y) / (uImageSizes.x / uImageSizes.y), 1.0),
-            min((uPlaneSizes.y / uPlaneSizes.x) / (uImageSizes.y / uImageSizes.x), 1.0)
-          );
-          vec2 uv = vec2(
-            vUv.x * ratio.x + (1.0 - ratio.x) * 0.5,
-            vUv.y * ratio.y + (1.0 - ratio.y) * 0.5
-          );
-          vec4 color = texture2D(tMap, uv);
-          
-          float d = roundedBoxSDF(vUv - 0.5, vec2(0.5 - uBorderRadius), uBorderRadius);
-          
-          float edgeSmooth = 0.005;
-          float alpha = (1.0 - smoothstep(-edgeSmooth, edgeSmooth, d)) * uAlpha;
-          
-          gl_FragColor = vec4(color.rgb, alpha);
-        }
-      `,
-      uniforms: {
-        tMap: { value: texture },
-        uPlaneSizes: { value: [0, 0] },
-        uImageSizes: { value: [0, 0] },
-        uSpeed: { value: 0 },
-        uTime: { value: 100 * Math.random() },
-        uBorderRadius: { value: this.borderRadius },
-        uAlpha: { value: 0 }
-      },
-      transparent: true
-    });
-  }
-
-  loadTexture() {
-    if (this.isLoaded) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = this.image;
-    img.onload = () => {
-      this.program.uniforms.tMap.value.image = img;
-      this.program.uniforms.uImageSizes.value = [img.naturalWidth, img.naturalHeight];
-      this.isLoaded = true;
-      this.program.uniforms.uAlpha.value = 1;
-    };
-  }
-
-  createMesh() {
-    this.plane = new Mesh(this.gl, {
-      geometry: this.geometry,
-      program: this.program
-    });
-    this.plane.setParent(this.scene);
-  }
-
-  createTitle() {
-    this.title = new Title({
-      gl: this.gl,
-      plane: this.plane,
-      renderer: this.renderer,
-      text: this.text,
-      textColor: this.textColor,
-      font: this.font
-    });
-  }
-
-  update(scroll: { current: number; last: number }, direction: 'right' | 'left', deltaTime: number = 16.66) {
-    this.plane.position.x = this.x - scroll.current - this.extra;
-
-    const x = this.plane.position.x;
-    const H = this.viewport.width / 2;
-
-    if (this.bend === 0) {
-      this.plane.position.y = 0;
-      this.plane.rotation.z = 0;
-    } else {
-      const B_abs = Math.abs(this.bend);
-      const R = (H * H + B_abs * B_abs) / (2 * B_abs);
-      const effectiveX = Math.min(Math.abs(x), H);
-
-      const arc = R - Math.sqrt(R * R - effectiveX * effectiveX);
-      if (this.bend > 0) {
-        this.plane.position.y = -arc;
-        this.plane.rotation.z = -Math.sign(x) * Math.asin(effectiveX / R);
-      } else {
-        this.plane.position.y = arc;
-        this.plane.rotation.z = Math.sign(x) * Math.asin(effectiveX / R);
-      }
-    }
-
-    this.speed = scroll.current - scroll.last;
-    
-    this.program.uniforms.uTime.value += 0.01 * (deltaTime / 16.66); 
-    this.program.uniforms.uSpeed.value = lerp(this.program.uniforms.uSpeed.value, this.speed, 0.1);
-
-    const planeOffset = this.plane.scale.x / 2;
-    const viewportOffset = this.viewport.width / 2;
-    this.isBefore = this.plane.position.x + planeOffset < -viewportOffset;
-    this.isAfter = this.plane.position.x - planeOffset > viewportOffset;
-
-    if (Math.abs(this.plane.position.x) < viewportOffset * 3) {
-      this.loadTexture();
-      this.isVisible = true;
-    } else {
-      this.isVisible = false;
-    }
-
-    if (this.isVisible) {
-      this.plane.visible = true;
-      if (this.title && this.title.mesh) this.title.mesh.visible = true;
-    } else {
-      this.plane.visible = false;
-      if (this.title && this.title.mesh) this.title.mesh.visible = false;
-    }
-
-    if (direction === 'right' && this.isBefore) {
-      this.extra -= this.widthTotal;
-      this.isBefore = this.isAfter = false;
-    }
-    if (direction === 'left' && this.isAfter) {
-      this.extra += this.widthTotal;
-      this.isBefore = this.isAfter = false;
-    }
-  }
-
-  onResize({ screen, viewport }: { screen?: ScreenSize; viewport?: Viewport } = {}) {
-    if (screen) this.screen = screen;
-    if (viewport) {
-      this.viewport = viewport;
-      if (this.plane.program.uniforms.uViewportSizes) {
-        this.plane.program.uniforms.uViewportSizes.value = [this.viewport.width, this.viewport.height];
-      }
-    }
-    this.scale = this.screen.height / 1500;
-    this.plane.scale.y = (this.viewport.height * (900 * this.scale)) / this.screen.height;
-    this.plane.scale.x = (this.viewport.width * (700 * this.scale)) / this.screen.width;
-    this.plane.program.uniforms.uPlaneSizes.value = [this.plane.scale.x, this.plane.scale.y];
-    this.padding = 2;
-    this.width = this.plane.scale.x + this.padding;
-    this.widthTotal = this.width * this.length;
-    this.x = this.width * this.index;
-  }
-}
-
-interface AppConfig {
-  items?: { image: string; text: string }[];
-  bend?: number;
-  textColor?: string;
-  borderRadius?: number;
-  font?: string;
-  scrollSpeed?: number;
-  scrollEase?: number;
-  autoScrollSpeed?: number;
-}
-
-class App {
-  container: HTMLElement;
-  scrollSpeed: number;
-  scroll: {
-    ease: number;
-    current: number;
-    target: number;
-    last: number;
-    position?: number;
-  };
-  onCheckDebounce: (...args: unknown[]) => void;
-  renderer!: Renderer;
-  gl!: GL;
-  camera!: Camera;
-  scene!: Transform;
-  planeGeometry!: Plane;
-  medias: Media[] = [];
-  mediasImages: { image: string; text: string }[] = [];
-  screen!: { width: number; height: number };
-  viewport!: { width: number; height: number };
-  raf: number = 0;
-  lastTime: number = 0;
-  
-  boundUpdate: (time: number) => void;
-  boundOnResize!: () => void;
-  boundOnWheel!: (e: Event) => void;
-  boundOnTouchDown!: (e: MouseEvent | TouchEvent) => void;
-  boundOnTouchMove!: (e: MouseEvent | TouchEvent) => void;
-  boundOnTouchUp!: () => void;
-  boundOnMouseEnter!: () => void;
-  boundOnMouseLeave!: () => void;
-
-  isDown: boolean = false;
-  start: number = 0;
-  isHovering: boolean = false;
-  
-  autoScrollSpeed: number; 
-  // State tracking the current auto-scroll velocity for smooth ramping
-  currentAutoScrollVelocity: number = 0; 
-
-  constructor(
-    container: HTMLElement,
-    {
-      items,
-      bend = 1,
-      textColor = '#ffffff',
-      borderRadius = 0,
-      font = 'bold 30px Figtree',
-      scrollSpeed = 2,
-      scrollEase = 0.05,
-      autoScrollSpeed = 0.05
-    }: AppConfig
-  ) {
-    document.documentElement.classList.remove('no-js');
-    this.container = container;
-    this.scrollSpeed = scrollSpeed;
-    this.autoScrollSpeed = autoScrollSpeed;
-    this.scroll = { ease: scrollEase, current: 0, target: 0, last: 0 };
-    this.onCheckDebounce = debounce(this.onCheck.bind(this), 200);
-    
-    this.boundUpdate = this.update.bind(this);
-    
-    this.createRenderer();
-    this.createCamera();
-    this.createScene();
-    this.onResize();
-    this.createGeometry();
-    this.createMedias(items, bend, textColor, borderRadius, font);
-    this.addEventListeners();
-    
-    this.raf = window.requestAnimationFrame(this.boundUpdate);
-  }
-
-  createRenderer() {
-    this.renderer = new Renderer({
-      alpha: true,
-      antialias: true,
-      dpr: Math.min(window.devicePixelRatio || 1, 2)
-    });
-    this.gl = this.renderer.gl;
-    this.gl.clearColor(0, 0, 0, 0);
-    this.container.appendChild(this.renderer.gl.canvas as HTMLCanvasElement);
-  }
-
-  createCamera() {
-    this.camera = new Camera(this.gl);
-    this.camera.fov = 45;
-    this.camera.position.z = 20;
-  }
-
-  createScene() {
-    this.scene = new Transform();
-  }
-
-  createGeometry() {
-    this.planeGeometry = new Plane(this.gl, {
-      heightSegments: 20,
-      widthSegments: 40
-    });
-  }
-
-  createMedias(
-    items: { image: string; text: string }[] | undefined,
-    bend: number = 1,
-    textColor: string,
-    borderRadius: number,
-    font: string
-  ) {
-    const defaultItems = [
-      { image: '/gallery/img1.webp', text: '' },
-      { image: '/gallery/img2.webp', text: '' },
-      { image: '/gallery/img3.webp', text: 'Waterfall' },
-      { image: '/gallery/img4.webp', text: 'Strawberries' },
-      { image: '/gallery/img5.webp', text: 'Deep Diving' },
-      { image: '/gallery/img6.webp', text: 'Train Track' },
-      { image: '/gallery/img7.webp', text: 'Santorini' },
-      { image: '/gallery/img8.webp', text: 'Blurry Lights' },
-      { image: '/gallery/img9.webp', text: 'New York' },
-      { image: '/gallery/img10.webp', text: 'Good Boy' },
-      { image: '/gallery/img11.webp', text: 'Coastline' }
-    ];
-    const galleryItems = items && items.length ? items : defaultItems;
-    this.mediasImages = galleryItems.concat(galleryItems);
-    this.medias = this.mediasImages.map((data, index) => {
-      return new Media({
-        geometry: this.planeGeometry,
-        gl: this.gl,
-        image: data.image,
-        index,
-        length: this.mediasImages.length,
-        renderer: this.renderer,
-        scene: this.scene,
-        screen: this.screen,
-        text: data.text,
-        viewport: this.viewport,
-        bend,
-        textColor,
-        borderRadius,
-        font
-      });
-    });
-  }
-
-  onTouchDown(e: MouseEvent | TouchEvent) {
-    this.isDown = true;
-    this.scroll.position = this.scroll.current;
-    this.start = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  }
-
-  onTouchMove(e: MouseEvent | TouchEvent) {
-    if (!this.isDown) return;
-    const x = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const distance = (this.start - x) * (this.scrollSpeed * 0.025);
-    this.scroll.target = (this.scroll.position ?? 0) + distance;
-  }
-
-  onTouchUp() {
-    this.isDown = false;
-    this.onCheck();
-  }
-
-  onMouseEnter() {
-    this.isHovering = true;
-  }
-
-  onMouseLeave() {
-    this.isHovering = false;
-  }
-
-  onWheel(e: Event) {
-    const wheelEvent = e as WheelEvent & { wheelDelta?: number; detail?: number };
-    const delta = wheelEvent.deltaY || wheelEvent.wheelDelta || wheelEvent.detail || 0;
-    
-    const normalizedDelta = Math.sign(delta) * Math.min(Math.abs(delta), 100);
-    this.scroll.target += (normalizedDelta > 0 ? this.scrollSpeed : -this.scrollSpeed) * 0.15;
-    this.onCheckDebounce();
-  }
-
-  onCheck() {
-    if (!this.medias || !this.medias[0]) return;
-    const width = this.medias[0].width;
-    const itemIndex = Math.round(Math.abs(this.scroll.target) / width);
-    const item = width * itemIndex;
-    this.scroll.target = this.scroll.target < 0 ? -item : item;
-  }
-
-  onResize() {
-    this.screen = {
-      width: this.container.clientWidth,
-      height: this.container.clientHeight
-    };
-    this.renderer.setSize(this.screen.width, this.screen.height);
-    this.camera.perspective({
-      aspect: this.screen.width / this.screen.height
-    });
-    const fov = (this.camera.fov * Math.PI) / 180;
-    const height = 2 * Math.tan(fov / 2) * this.camera.position.z;
-    const width = height * this.camera.aspect;
-    this.viewport = { width, height };
-    if (this.medias) {
-      this.medias.forEach(media => media.onResize({ screen: this.screen, viewport: this.viewport }));
-    }
-  }
-
-  update(time: number) {
-    if (!this.lastTime) this.lastTime = time;
-    const deltaTime = time - this.lastTime || 16.66;
-    this.lastTime = time;
-
-    const rect = this.container.getBoundingClientRect();
-    const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
-    
-    if (isVisible) {
-      // Manage Auto-scroll Velocity
-      if (!this.isHovering && !this.isDown) {
-        // Linearly ramp up to the target autoScrollSpeed over ~1 second (assuming 60fps)
-        // 0.05 lerp achieves ~95% of target speed in about 60 frames.
-        this.currentAutoScrollVelocity = lerp(
-          this.currentAutoScrollVelocity, 
-          this.autoScrollSpeed, 
-          0.05
-        );
-      } else {
-        // Immediately drop velocity to 0 when user interacts
-        this.currentAutoScrollVelocity = 0;
-      }
-
-      // Apply the smoothly ramped velocity to our target position
-      this.scroll.target += this.currentAutoScrollVelocity * (deltaTime / 16.66);
-
-      // Interpolate current scroll towards the target
-      this.scroll.current = lerp(this.scroll.current, this.scroll.target, this.scroll.ease);
-
-      const direction = this.scroll.current > this.scroll.last ? 'right' : 'left';
-      if (this.medias) {
-        this.medias.forEach(media => media.update(this.scroll, direction, deltaTime));
-      }
-      this.renderer.render({ scene: this.scene, camera: this.camera });
-      this.scroll.last = this.scroll.current;
-    }
-    
-    this.raf = window.requestAnimationFrame(this.boundUpdate);
-  }
-
-  addEventListeners() {
-    this.boundOnResize = this.onResize.bind(this);
-    this.boundOnWheel = this.onWheel.bind(this);
-    this.boundOnTouchDown = this.onTouchDown.bind(this);
-    this.boundOnTouchMove = this.onTouchMove.bind(this);
-    this.boundOnTouchUp = this.onTouchUp.bind(this);
-    this.boundOnMouseEnter = this.onMouseEnter.bind(this);
-    this.boundOnMouseLeave = this.onMouseLeave.bind(this);
-    
-    window.addEventListener('resize', this.boundOnResize);
-    window.addEventListener('mousewheel', this.boundOnWheel, { passive: true });
-    window.addEventListener('wheel', this.boundOnWheel, { passive: true });
-    window.addEventListener('mousedown', this.boundOnTouchDown);
-    window.addEventListener('mousemove', this.boundOnTouchMove);
-    window.addEventListener('mouseup', this.boundOnTouchUp);
-    window.addEventListener('touchstart', this.boundOnTouchDown, { passive: true });
-    window.addEventListener('touchmove', this.boundOnTouchMove, { passive: true });
-    window.addEventListener('touchend', this.boundOnTouchUp);
-    this.container.addEventListener('mouseenter', this.boundOnMouseEnter);
-    this.container.addEventListener('mouseleave', this.boundOnMouseLeave);
-  }
-
-  destroy() {
-    window.cancelAnimationFrame(this.raf);
-    window.removeEventListener('resize', this.boundOnResize);
-    window.removeEventListener('mousewheel', this.boundOnWheel);
-    window.removeEventListener('wheel', this.boundOnWheel);
-    window.removeEventListener('mousedown', this.boundOnTouchDown);
-    window.removeEventListener('mousemove', this.boundOnTouchMove);
-    window.removeEventListener('mouseup', this.boundOnTouchUp);
-    window.removeEventListener('touchstart', this.boundOnTouchDown);
-    window.removeEventListener('touchmove', this.boundOnTouchMove);
-    window.removeEventListener('touchend', this.boundOnTouchUp);
-    this.container.removeEventListener('mouseenter', this.boundOnMouseEnter);
-    this.container.removeEventListener('mouseleave', this.boundOnMouseLeave);
-    if (this.renderer && this.renderer.gl && this.renderer.gl.canvas.parentNode) {
-      this.renderer.gl.canvas.parentNode.removeChild(this.renderer.gl.canvas as HTMLCanvasElement);
-    }
-  }
-}
-
+// ── Props (same interface as OGL version) ────────────────────────────────────
 interface CircularGalleryProps {
-  items?: { image: string; text: string }[];
-  bend?: number;
-  textColor?: string;
-  borderRadius?: number;
-  font?: string;
-  scrollSpeed?: number;
-  scrollEase?: number;
-  autoScrollSpeed?: number;
+  items?:           { image: string; text: string }[]
+  bend?:            number   // arc intensity — same semantics as OGL bend prop
+  textColor?:       string
+  borderRadius?:    number   // fraction of item height (0.05 → ~21 px)
+  font?:            string   // CSS font shorthand
+  scrollSpeed?:     number   // drag sensitivity multiplier
+  scrollEase?:      number   // lerp factor toward scroll target (0–1)
+  autoScrollSpeed?: number   // base auto-scroll magnitude
 }
 
+// ── Component ────────────────────────────────────────────────────────────────
 export default function CircularGallery({
-  items,
-  bend = 3,
-  textColor = '#ffffff',
-  borderRadius = 0.05,
-  font = 'bold 30px Figtree',
-  scrollSpeed = 2,
-  scrollEase = 0.05,
-  autoScrollSpeed = 0.03
+  items           = defaultItems,
+  bend            = 3,
+  textColor       = '#ffffff',
+  borderRadius    = 0.05,
+  font            = 'bold 20px sans-serif',
+  scrollSpeed     = 5,
+  scrollEase      = 0.05,
+  autoScrollSpeed = 0.2,
 }: CircularGalleryProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const trackRef      = useRef<HTMLDivElement>(null)
+  const cardRefs      = useRef<(HTMLDivElement | null)[]>([])
+
+  // Scroll state — same model as the OGL App.scroll object
+  const scrollRef          = useRef({ current: 0, target: 0, last: 0 })
+  const autoVelocityRef    = useRef(0)
+  const isHoveringRef      = useRef(false)
+  const isDraggingRef      = useRef(false)
+  const dragStartXRef      = useRef(0)
+  const dragStartTargetRef = useRef(0)
+
+  // Duplicate items for seamless infinite loop
+  const displayItems = [...items, ...items]
+  const loopWidth    = items.length * SPACING
+
+  // border-radius: fraction of item height → pixels
+  const borderRadiusPx = Math.round(borderRadius * ITEM_HEIGHT)
+
   useEffect(() => {
-    if (!containerRef.current) return;
-    const app = new App(containerRef.current, {
-      items,
-      bend,
-      textColor,
-      borderRadius,
-      font,
-      scrollSpeed,
-      scrollEase,
-      autoScrollSpeed
-    });
-    return () => {
-      app.destroy();
-    };
-  }, [items, bend, textColor, borderRadius, font, scrollSpeed, scrollEase, autoScrollSpeed]);
-  return <div className="w-full h-full overflow-hidden cursor-grab active:cursor-grabbing" ref={containerRef} />;
+    // ── Arc math — mirrors OGL Media.update() exactly ──────────────────────
+    //   H  = half-container width  (≈ viewport.width/2 in OGL world units)
+    //   B  = arc depth in the same unit (derived from bend + a px scale factor
+    //        so bend=3 looks equivalent to the OGL default)
+    //   R  = (H² + B²) / (2B)   — radius of the virtual arc circle
+    //   arc = R - √(R² - effectiveX²)  — sagitta at position x
+    // ───────────────────────────────────────────────────────────────────────
+    const applyArcTransforms = (xOffset: number) => {
+      if (!containerRef.current) return
+      const containerWidth = containerRef.current.offsetWidth
+      const H = containerWidth / 2
+
+      // Scale bend to pixels.  bend*50 gives ≈150 px max dip at bend=3.
+      const B = Math.abs(bend) * 50
+      const R = B > 0 ? (H * H + B * B) / (2 * B) : Infinity
+
+      cardRefs.current.forEach((el, i) => {
+        if (!el) return
+
+        // Signed distance of this card's centre from the container centre
+        const cardCenterX = -xOffset + i * SPACING + ITEM_WIDTH / 2
+        const dist        = cardCenterX - H
+        const effectiveX  = Math.min(Math.abs(dist), H)
+
+        let translateY = 0
+        let rotateZ    = 0
+
+        if (R < Infinity) {
+          // Vertical dip along the arc (sagitta formula)
+          const arc = R - Math.sqrt(R * R - effectiveX * effectiveX)
+
+          // bend > 0 → arc dips downward (OGL: position.y = -arc)
+          // bend < 0 → arc curves upward
+          translateY = bend > 0 ? arc : -arc
+
+          // Tangential rotation — same sign logic as OGL rotation.z
+          // OGL:  rotation.z = -sign(x) * asin(effectiveX / R)
+          // CSS:  rotate is the negative of OGL rotation.z (coordinate flip)
+          const angle = Math.asin(Math.min(effectiveX / R, 1)) * (180 / Math.PI)
+          rotateZ = bend > 0
+            ? Math.sign(dist) * angle
+            : -Math.sign(dist) * angle
+        }
+
+        // Fade cards that are far from the centre
+        const normDist = Math.abs(dist) / (H * 1.2)
+        const opacity  = Math.max(0.1, 1 - normDist * 0.7)
+
+        el.style.transform = `translateY(${translateY}px) rotate(${rotateZ}deg)`
+        el.style.opacity   = String(opacity)
+      })
+    }
+
+    // ── GSAP ticker loop ───────────────────────────────────────────────────
+    const tick = () => {
+      const scroll = scrollRef.current
+
+      // Auto-scroll: smooth ramp-up/down (mirrors OGL currentAutoScrollVelocity lerp)
+      const targetVelocity = (!isHoveringRef.current && !isDraggingRef.current)
+        ? autoScrollSpeed * 20   // scale to px/frame
+        : 0
+      autoVelocityRef.current = lerp(autoVelocityRef.current, targetVelocity, 0.05)
+      scroll.target += autoVelocityRef.current
+
+      // Ease scroll.current toward scroll.target (OGL scroll.ease)
+      scroll.current = lerp(scroll.current, scroll.target, scrollEase)
+
+      // Infinite loop via modulo — seamless because displayItems is 2× items
+      const xOffset = ((scroll.current % loopWidth) + loopWidth) % loopWidth
+
+      if (trackRef.current) {
+        trackRef.current.style.transform = `translateX(${-xOffset}px)`
+      }
+
+      applyArcTransforms(xOffset)
+      scroll.last = scroll.current
+    }
+
+    gsap.ticker.add(tick)
+    return () => gsap.ticker.remove(tick)
+  // Stable deps — only recreate if these structural values change
+  }, [loopWidth, bend, autoScrollSpeed, scrollEase])
+
+  // ── Event handlers ────────────────────────────────────────────────────────
+  const handleMouseEnter = () => { isHoveringRef.current = true }
+  const handleMouseLeave = () => {
+    isHoveringRef.current  = false
+    isDraggingRef.current  = false
+    if (containerRef.current) containerRef.current.style.cursor = 'grab'
+  }
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    isDraggingRef.current       = true
+    dragStartXRef.current       = e.clientX
+    dragStartTargetRef.current  = scrollRef.current.target
+    if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return
+    const delta = dragStartXRef.current - e.clientX
+    scrollRef.current.target = dragStartTargetRef.current + delta * scrollSpeed * 0.5
+  }
+
+  const handlePointerUp = () => {
+    isDraggingRef.current = false
+    if (containerRef.current) containerRef.current.style.cursor = 'grab'
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full overflow-hidden cursor-grab touch-none select-none"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      {/* Edge fade-out overlays */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-32 z-10 bg-linear-to-r from-black/80 to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-32 z-10 bg-linear-to-l from-black/80 to-transparent" />
+
+      {/* Scrolling track */}
+      <div
+        ref={trackRef}
+        className="flex items-center absolute top-1/2 -translate-y-1/2 will-change-transform"
+        style={{ gap: `${GAP}px`, width: `${displayItems.length * SPACING}px` }}
+      >
+        {displayItems.map((item, i) => (
+          <div
+            key={i}
+            ref={(el) => { cardRefs.current[i] = el }}
+            className="relative flex-shrink-0 overflow-hidden border border-white/10
+                       shadow-[0_25px_50px_rgba(0,0,0,0.6)] will-change-transform"
+            style={{
+              width:        ITEM_WIDTH,
+              height:       ITEM_HEIGHT,
+              borderRadius: borderRadiusPx,
+            }}
+          >
+            <img
+              src={item.image}
+              alt={item.text}
+              className="w-full h-full object-cover"
+              draggable={false}
+            />
+
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-60 pointer-events-none" />
+
+            {/* Text label */}
+            {item.text && (
+              <div className="absolute bottom-6 left-6 right-6 pointer-events-none">
+                <p
+                  className="font-medium text-xl tracking-wide drop-shadow"
+                  style={{ color: textColor, font }}
+                >
+                  {item.text}
+                </p>
+                <div className="w-8 h-1 bg-fuchsia-500 rounded-full mt-2 opacity-80" />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
