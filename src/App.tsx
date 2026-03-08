@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import Navbar from './components/Navbar' // 1. Import your Navbar component
 import LogoSection from './sections/LogoSection'
 import CountdownSection from './sections/CountdownSection'
 import LightPillar from './components/LightPillar'
@@ -36,8 +37,13 @@ export default function App() {
       </div>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
+        {/* 2. Place the Navbar here. Because it has position: 'fixed' and a high z-index, 
+            it will sit on top of everything and hide/show based on its internal scroll logic */}
+        <Navbar />
+
         <LogoSection />
         <CountdownSection />
+        
         <Suspense fallback={null}>
           <ThemeAboutSection />
         </Suspense>
