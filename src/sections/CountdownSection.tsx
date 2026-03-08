@@ -206,9 +206,9 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
       <div ref={bg1Ref} style={{ position: 'absolute', inset: '-10% 0', backgroundImage: 'url(/wallhaven-yxy8zk_1920x1080.webp)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(7,5,10,0.72) 0%, rgba(7,5,10,0.55) 50%, rgba(7,5,10,0.8) 100%)', zIndex: 2 }} />
 
-      <div ref={innerRef} style={{ position: 'relative', zIndex: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: '5vh' }}>
+      <div ref={innerRef} style={{ position: 'relative', zIndex: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center'}}>
         
-        <p ref={headlineRef} style={{ margin: '0 0 2rem 0', fontFamily: '"Cinzel", serif', fontWeight: 600, fontSize: 'clamp(1rem, 2.4vw, 1.45rem)', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#D4AF37' }}>
+        <p ref={headlineRef} style={{ margin: '8rem 0 1rem 0', fontFamily: '"Cinzel", serif', fontWeight: 600, fontSize: 'clamp(1rem, 2.4vw, 1.45rem)', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#D4AF37' }}>
           Utsav · BMSCE · 2026
         </p>
         
@@ -252,15 +252,15 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
           ref={logoContainerRef} 
           style={{ 
             position: 'relative', 
-            width: 'clamp(160px, 22vw, 320px)', 
+            width: 'clamp(280px, 22vw, 320px)', 
             marginBottom: '2rem',
-            marginTop: '1.5rem',
-            transform: 'translate(-0.5%, 10%)' // Kept your manual nudge!
+            marginTop: '0.5rem',
+            transform: 'translate(-0.5%)' // Kept your manual nudge!
           }}
         >
           <img
             ref={logoRef}
-            src="/u26 final logo.webp"
+            src="/u26 final logo.png"
             alt="Utsav Logo"
             style={{
               width: '100%',
@@ -290,9 +290,6 @@ export default function CountdownSection({ sectionRef }: { sectionRef?: React.Re
           <SubUnit value={time.seconds} label="Seconds" />
         </div>
      
-        <button className="explore-events-btn" style={{ marginTop: '1rem',marginBottom:"2rem" }}>
-          Explore Events
-        </button>
       </div>
     </section>
   )

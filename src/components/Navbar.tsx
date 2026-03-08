@@ -1,66 +1,116 @@
 import { useState, useEffect } from 'react'
 
-export default function Navbar() {
-  const [isVisible, setIsVisible] = useState(false)
+interface NavbarProps {
+  isVisible: boolean; // Waits for the App.tsx intro to finish
+}
 
-  // Wait until the user scrolls past the hero section to show the navbar
+export default function Navbar({ isVisible }: NavbarProps) {
+  // New state to track if the user is scrolling up or down
+  const [isScrollingUp, setIsScrollingUp] = useState(true)
+
   useEffect(() => {
+    // Keep track of the last scroll position locally to compare against
+    let lastScrollY = window.scrollY
+
     const handleScroll = () => {
-      // 0.9 = 90% of the viewport height. Adjust if you want it to appear sooner/later.
-      if (window.scrollY > window.innerHeight * 0.9) {
-        setIsVisible(true)
-      } else {
-        setIsVisible(false)
+      const currentScrollY = window.scrollY
+
+      // If scrolling DOWN and past a small 80px buffer (so it doesn't hide at the very top)
+      if (currentScrollY > lastScrollY && currentScrollY > 80) {
+        setIsScrollingUp(false)
+      } 
+      // If scrolling UP
+      else if (currentScrollY < lastScrollY) {
+        setIsScrollingUp(true)
       }
+
+      // Update the tracker for the next scroll event
+      lastScrollY = currentScrollY
     }
 
-    window.addEventListener('scroll', handleScroll)
+    window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // The navbar should only show IF the intro is done AND the user is scrolling up
+  const shouldShow = isVisible && isScrollingUp
 
   return (
     <nav
       style={{
         position: 'fixed',
-        top: '2rem',
+        top: '1.25rem', 
         left: '50%',
-        // Centers it and handles the slide-down animation
-        transform: `translateX(-50%) translateY(${isVisible ? '0' : '-150%'})`,
-        opacity: isVisible ? 1 : 0,
-        transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+        // Use our new combined "shouldShow" variable here
+        transform: `translateX(-50%) translateY(${shouldShow ? '0' : '-150%'})`,
+        opacity: shouldShow ? 1 : 0,
+        // Sped up the transition slightly (0.4s) so it feels responsive when scrolling
+        transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)', 
         zIndex: 100,
         
-        // Big Oval styling
-        width: 'min(90vw, 700px)', // Responsive width
-        height: '70px',
+        width: 'min(92vw, 1000px)', 
+        height: 'clamp(60px, 6vw, 80px)', 
         borderRadius: '9999px',
         
-        // Glassmorphism effects
-        background: 'rgba(20, 10, 30, 0.45)', 
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+        background: 'rgba(20, 10, 30, 0.65)', 
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.5)',
         
-        // Layout 
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center', // Centers the logo perfectly
-        padding: '0 2rem',
-        pointerEvents: isVisible ? 'auto' : 'none',
+        justifyContent: 'space-between', 
+        padding: '0 1.25rem',
+        pointerEvents: shouldShow ? 'auto' : 'none',
       }}
     >
+      {/* Left Side: Logo */}
       <img 
-        src="/ut-2026.svg" 
-        alt="Utsav 2026 Logo" 
+        src="/u26 final logo.png" 
+        alt="Utsav Logo" 
         style={{
-          height: '40px', // Tweak this based on your SVG's exact aspect ratio
+          height: 'clamp(45px, 5vw, 65px)', 
           width: 'auto',
           objectFit: 'contain',
-          userSelect: 'none' // Prevents the image from being highlighted accidentally
+          userSelect: 'none',
+          cursor: 'pointer',
+          marginLeft: '-0.5rem' 
         }}
         draggable={false}
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} 
       />
+
+      {/* Right Side: Events Link */}
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <a
+          href="#events"
+          style={{
+            color: '#e2d8f0',
+            textDecoration: 'none',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            transition: 'all 0.2s ease',
+            padding: '0.5rem 1rem', 
+            background: 'transparent', 
+            borderRadius: '999px',
+            border: '1px solid transparent'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.color = '#FF9FFC';
+            e.currentTarget.style.background = 'rgba(222, 91, 234, 0.1)'; 
+            e.currentTarget.style.border = '1px solid rgba(255, 159, 252, 0.3)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.color = '#e2d8f0';
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.border = '1px solid transparent';
+          }}
+        >
+          Events
+        </a>
+      </div>
     </nav>
   )
 }

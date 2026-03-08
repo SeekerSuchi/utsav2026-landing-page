@@ -41,6 +41,7 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
     const tagline        = taglineRef.current
     const line           = lineRef.current
     const logoContainer  = logoContainerRef.current
+    
     if (!overlay || layers.some((l) => !l) || !glow || !tagline || !line || !logoContainer) return
 
     layers.forEach((el) => {
@@ -52,29 +53,35 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
 
     const tl = gsap.timeline({
       onComplete: () => {
-        onAnimationComplete?.()
-
-        // ── Fast Outro Animation ──────────────────────────────────
-        gsap.to([glow, line, tagline], { opacity: 0, duration: 0.2, ease: 'power2.out' })
+        // ── Fade-out animation (Replaced the fly-to-nav logic) ──
         
-        gsap.to(logoContainer, {
-          opacity: 0,
-          scale: 1.15,
-          duration: 0.4,
-          ease: 'power2.inOut',
-        })
-
+        // 1. Fade out decorative elements + overlay background
+        gsap.to([glow, line, tagline], { opacity: 0, duration: 0.35, ease: 'power2.out' })
         gsap.to(overlay, {
           opacity: 0,
           duration: 0.4,
           delay: 0.1,
           ease: 'power2.inOut',
-          onComplete: () => { overlay.style.display = 'none' },
+          onComplete: () => { 
+            overlay.style.display = 'none' 
+            onAnimationComplete?.()
+          },
+        })
+
+        // 2. Elegantly fade and slightly shrink the main logo
+        gsap.to(logoContainer, {
+          opacity: 0,
+          scale: 0.9,
+          duration: 0.5,
+          ease: 'power2.inOut',
+          onComplete: () => {
+            logoContainer.style.display = 'none'
+          },
         })
       },
     })
 
-    // --- Original Reveal Animations Below ---
+    // --- Original Intro Animations ---
     tl.to(glow, {
       opacity: 0.6, scale: 1.6,
       duration: 1.8, ease: 'power2.out',
@@ -122,6 +129,7 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
       duration: 0.4, ease: 'sine.inOut',
       stagger: 0,
     }, 0.1 + 6 * 0.28 + 0.6)
+    
     tl.to(layers, {
       scale: 1,
       duration: 0.5, ease: 'sine.inOut',
@@ -148,27 +156,29 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
   }, [onAnimationComplete])
 
   return (
-    <div
-      ref={overlayRef}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
-        background: '#07050a',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-      }}
-    >
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'radial-gradient(ellipse 65% 65% at 50% 50%, #150d22 0%, #07050a 100%)',
-        zIndex: 0,
-        pointerEvents: 'none',
-      }} />
+    <>
+      {/* Loading overlay */}
+      <div
+        ref={overlayRef}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 50,
+          background: '#07050a',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'radial-gradient(ellipse 65% 65% at 50% 50%, #150d22 0%, #07050a 100%)',
+          zIndex: 0,
+          pointerEvents: 'none',
+        }} />
 
       <div
         ref={glowRef}
