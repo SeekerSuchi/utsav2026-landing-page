@@ -1,242 +1,363 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 
-// ── Utility ─────────────────────────────────────────────────────────────────
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t
-}
-
-// ── Constants ────────────────────────────────────────────────────────────────
-const ITEM_WIDTH  = 320
-const ITEM_HEIGHT = 420
-const GAP         = 24
-const SPACING     = ITEM_WIDTH + GAP
-
-// ── Default data (mirrors the OGL version) ───────────────────────────────────
-const defaultItems = [
-  { image: '/gallery/img1.webp',  text: '' },
-  { image: '/gallery/img2.webp',  text: '' },
-  { image: '/gallery/img3.webp',  text: 'Waterfall' },
-  { image: '/gallery/img4.webp',  text: 'Strawberries' },
-  { image: '/gallery/img5.webp',  text: 'Deep Diving' },
-  { image: '/gallery/img6.webp',  text: 'Train Track' },
-  { image: '/gallery/img7.webp',  text: 'Santorini' },
-  { image: '/gallery/img8.webp',  text: 'Blurry Lights' },
-  { image: '/gallery/img9.webp',  text: 'New York' },
-  { image: '/gallery/img10.webp', text: 'Good Boy' },
-  { image: '/gallery/img11.webp', text: 'Coastline' },
-]
-
-// ── Props (same interface as OGL version) ────────────────────────────────────
 interface CircularGalleryProps {
-  items?:           { image: string; text: string }[]
-  bend?:            number   // arc intensity — same semantics as OGL bend prop
-  textColor?:       string
-  borderRadius?:    number   // fraction of item height (0.05 → ~21 px)
-  font?:            string   // CSS font shorthand
-  scrollSpeed?:     number   // drag sensitivity multiplier
-  scrollEase?:      number   // lerp factor toward scroll target (0–1)
-  autoScrollSpeed?: number   // base auto-scroll magnitude
+  items: { image: string; text: string }[]
+  isPaused?: boolean
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── CONFIGURATION ──
+const SCROLL_LERP = 0.06
+const AUTO_SCROLL_SPEED = 1.5
+const POP_LERP = 0.05 
+
 export default function CircularGallery({
-  items           = defaultItems,
-  bend            = 3,
-  textColor       = '#ffffff',
-  borderRadius    = 0.05,
-  font            = 'bold 20px sans-serif',
-  scrollSpeed     = 5,
-  scrollEase      = 0.05,
-  autoScrollSpeed = 0.2,
+  items,
+  isPaused = false,
 }: CircularGalleryProps) {
-  const containerRef  = useRef<HTMLDivElement>(null)
-  const trackRef      = useRef<HTMLDivElement>(null)
-  const cardRefs      = useRef<(HTMLDivElement | null)[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([])
+  const imgRefs = useRef<(HTMLImageElement | null)[]>([]) 
+  const titleRef = useRef<HTMLParagraphElement>(null)
 
-  // Scroll state — same model as the OGL App.scroll object
-  const scrollRef          = useRef({ current: 0, target: 0, last: 0 })
-  const autoVelocityRef    = useRef(0)
-  const isHoveringRef      = useRef(false)
-  const isDraggingRef      = useRef(false)
-  const dragStartXRef      = useRef(0)
-  const dragStartTargetRef = useRef(0)
+  // Layout & Interaction State
+  const [layout, setLayout] = useState({ slideWidth: 280, slideHeight: 380, isMobile: false })
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
 
-  // Duplicate items for seamless infinite loop
-  const displayItems = [...items, ...items]
-  const loopWidth    = items.length * SPACING
+  // Scroll & Animation Refs
+  const scrollTarget = useRef(0)
+  const scrollCurrent = useRef(0)
+  const isPausedRef = useRef(isPaused)
+  const activeIndexRef = useRef(-1)
+  
+  // Drag Refs
+  const isDragging = useRef(false)
+  const hasDragged = useRef(false) 
+  const touchStartX = useRef(0)
 
-  // border-radius: fraction of item height → pixels
-  const borderRadiusPx = Math.round(borderRadius * ITEM_HEIGHT)
+  // ── OPTIMIZATION CACHES ──
+  const dims = useRef({ width: 0, height: 0, cx: 0, arcBaselineY: 0, slideGap: 300, trackWidth: 0 })
+  const offsetsRef = useRef<number[]>([]) 
+  const popValuesRef = useRef<number[]>([]) 
+  const globalPopRef = useRef(0) 
+  
+  // Caches pre-calculated target widths/heights so we don't read DOM properties inside the 60fps loop
+  const targetSizesRef = useRef<{ w: number, h: number }[]>([])
+  
+  // Caches the exact string values currently applied to the DOM to prevent Layout Thrashing
+  const lastStylesRef = useRef<{ w: string, h: string, t: string, o: string, z: string }[]>([])
+
+  const displayItems = [...items, ...items, ...items]
+
+  // Initialize tracking arrays
+  if (popValuesRef.current.length !== displayItems.length) {
+    popValuesRef.current = new Array(displayItems.length).fill(0)
+    offsetsRef.current = new Array(displayItems.length).fill(0)
+    lastStylesRef.current = Array(displayItems.length).fill(null).map(() => ({ w: '', h: '', t: '', o: '', z: '' }))
+  }
 
   useEffect(() => {
-    // ── Arc math — mirrors OGL Media.update() exactly ──────────────────────
-    //   H  = half-container width  (≈ viewport.width/2 in OGL world units)
-    //   B  = arc depth in the same unit (derived from bend + a px scale factor
-    //        so bend=3 looks equivalent to the OGL default)
-    //   R  = (H² + B²) / (2B)   — radius of the virtual arc circle
-    //   arc = R - √(R² - effectiveX²)  — sagitta at position x
-    // ───────────────────────────────────────────────────────────────────────
-    const applyArcTransforms = (xOffset: number) => {
-      if (!containerRef.current) return
-      const containerWidth = containerRef.current.offsetWidth
-      const H = containerWidth / 2
+    isPausedRef.current = isPaused
+  }, [isPaused])
 
-      // Scale bend to pixels.  bend*50 gives ≈150 px max dip at bend=3.
-      const B = Math.abs(bend) * 50
-      const R = B > 0 ? (H * H + B * B) / (2 * B) : Infinity
+  // Handle Resize and Dimensions
+  useEffect(() => {
+    const updateDims = () => {
+      const w = containerRef.current?.offsetWidth || window.innerWidth
+      const h = containerRef.current?.offsetHeight || window.innerHeight
+      const isMobile = w < 768
+      
+      const slideWidth = isMobile ? w * 0.6 : 280
+      const slideHeight = isMobile ? slideWidth * 1.3 : 380
+      const slideGap = isMobile ? w * 0.5 : w * 0.15 
+
+      setLayout({ slideWidth, slideHeight, isMobile })
+
+      dims.current = {
+        width: w,
+        height: h,
+        cx: w / 2,
+        arcBaselineY: isMobile ? h * 0.4 : h * 0.45,
+        slideGap,
+        trackWidth: displayItems.length * slideGap
+      }
+
+      // Clear size cache on resize so it recalculates perfectly for the new screen dimensions
+      targetSizesRef.current = []
+    }
+    
+    updateDims()
+    window.addEventListener('resize', updateDims)
+    return () => window.removeEventListener('resize', updateDims)
+  }, [displayItems.length])
+
+  // Core Animation Loop
+  useEffect(() => {
+    const animate = () => {
+      const dt = gsap.ticker.deltaRatio(60)
+      const isExpanded = expandedIndex !== null
+
+      // Auto-Scroll Logic
+      if (!isPausedRef.current && !isDragging.current && !isExpanded) {
+        scrollTarget.current += AUTO_SCROLL_SPEED * dt
+      }
+
+      // Smooth scroll lerp with threshold clamping to settle microscopic decimals
+      const ease = 1 - Math.pow(1 - SCROLL_LERP, dt)
+      scrollCurrent.current += (scrollTarget.current - scrollCurrent.current) * ease
+      if (Math.abs(scrollTarget.current - scrollCurrent.current) < 0.01) {
+        scrollCurrent.current = scrollTarget.current
+      }
+
+      // Global Pop Lerp Clamping
+      const targetGlobal = isExpanded ? 1 : 0
+      globalPopRef.current += (targetGlobal - globalPopRef.current) * (POP_LERP * dt)
+      if (Math.abs(globalPopRef.current - targetGlobal) < 0.001) {
+        globalPopRef.current = targetGlobal
+      }
+
+      const { width: containerWidth, height: containerHeight, cx: windowCenterX, arcBaselineY, slideGap, trackWidth } = dims.current
+      if (trackWidth === 0) return
+
+      let closestDist = Infinity
+      let closestIndex = -1
 
       cardRefs.current.forEach((el, i) => {
         if (!el) return
 
-        // Signed distance of this card's centre from the container centre
-        const cardCenterX = -xOffset + i * SPACING + ITEM_WIDTH / 2
-        const dist        = cardCenterX - H
-        const effectiveX  = Math.min(Math.abs(dist), H)
+        let wrappedOffsetX = (((i * slideGap - scrollCurrent.current) % trackWidth) + trackWidth) % trackWidth
+        if (wrappedOffsetX > trackWidth / 2) wrappedOffsetX -= trackWidth
+        
+        offsetsRef.current[i] = wrappedOffsetX
 
-        let translateY = 0
-        let rotateZ    = 0
+        const slideCenterX = windowCenterX + wrappedOffsetX
+        const normalizedDist = wrappedOffsetX / (containerWidth * 0.5)
+        const absDist = Math.min(Math.abs(normalizedDist), 1.5)
 
-        if (R < Infinity) {
-          // Vertical dip along the arc (sagitta formula)
-          const arc = R - Math.sqrt(R * R - effectiveX * effectiveX)
-
-          // bend > 0 → arc dips downward (OGL: position.y = -arc)
-          // bend < 0 → arc curves upward
-          translateY = bend > 0 ? arc : -arc
-
-          // Tangential rotation — same sign logic as OGL rotation.z
-          // OGL:  rotation.z = -sign(x) * asin(effectiveX / R)
-          // CSS:  rotate is the negative of OGL rotation.z (coordinate flip)
-          const angle = Math.asin(Math.min(effectiveX / R, 1)) * (180 / Math.PI)
-          rotateZ = bend > 0
-            ? Math.sign(dist) * angle
-            : -Math.sign(dist) * angle
+        if (Math.abs(wrappedOffsetX) < closestDist) {
+          closestDist = Math.abs(wrappedOffsetX)
+          closestIndex = i
         }
 
-        // Fade cards that are far from the centre
-        const normDist = Math.abs(dist) / (H * 1.2)
-        const opacity  = Math.max(0.1, 1 - normDist * 0.7)
+        // Individual Pop Lerp Clamping
+        const targetPop = expandedIndex === i ? 1 : 0
+        popValuesRef.current[i] += (targetPop - popValuesRef.current[i]) * (POP_LERP * dt)
+        if (Math.abs(popValuesRef.current[i] - targetPop) < 0.001) {
+          popValuesRef.current[i] = targetPop
+        }
+        const popVal = popValuesRef.current[i]
 
-        el.style.transform = `translateY(${translateY}px) rotate(${rotateZ}deg)`
-        el.style.opacity   = String(opacity)
+        const baseScale = Math.max(1 - absDist * 0.25, 0.5) 
+        const translateZ = Math.abs(normalizedDist) * -200 
+        const rotateY = normalizedDist * -45 
+        const baseY = arcBaselineY + Math.pow(absDist, 2) * 20
+        const baseOpacity = Math.max(0.1, 1 - absDist * 1.5)
+
+        const popX = windowCenterX 
+        const popY = containerHeight / 2 
+
+        // ── CACHED SIZE CALCULATIONS ──
+        let popWidth = layout.slideWidth
+        let popHeight = layout.slideHeight
+
+        if (!targetSizesRef.current[i]) {
+          if (layout.isMobile) {
+            const mobileScale = Math.min(
+              (containerWidth * 0.9) / layout.slideWidth,
+              (containerHeight * 0.9) / layout.slideHeight,
+              1.4 
+            )
+            targetSizesRef.current[i] = { w: layout.slideWidth * mobileScale, h: layout.slideHeight * mobileScale }
+          } else {
+            const imgEl = imgRefs.current[i]
+            if (imgEl && imgEl.naturalWidth && imgEl.naturalHeight) {
+              const screenMargin = 0.9
+              const fitScale = Math.min(
+                (containerWidth * screenMargin) / imgEl.naturalWidth,
+                (containerHeight * screenMargin) / imgEl.naturalHeight,
+                1 
+              )
+              targetSizesRef.current[i] = { w: imgEl.naturalWidth * fitScale, h: imgEl.naturalHeight * fitScale }
+            } else {
+              // Not loaded yet; fallback and leave un-cached so it attempts again next frame
+              popWidth = layout.slideWidth * 1.5
+              popHeight = layout.slideHeight * 1.5
+            }
+          }
+        }
+
+        if (targetSizesRef.current[i]) {
+          popWidth = targetSizesRef.current[i].w
+          popHeight = targetSizesRef.current[i].h
+        }
+
+        // ── SMOOTH INTERPOLATION ──
+        const currentWidth = layout.slideWidth + (popWidth - layout.slideWidth) * popVal
+        const currentHeight = layout.slideHeight + (popHeight - layout.slideHeight) * popVal
+        
+        const currentX = slideCenterX + (popX - slideCenterX) * popVal
+        const currentY = baseY + (popY - baseY) * popVal
+        const currentScale = baseScale + (1 - baseScale) * popVal
+        const currentTranslateZ = translateZ * (1 - popVal)
+        const currentRotateY = rotateY * (1 - popVal)
+
+        let finalOpacity = baseOpacity
+        if (expandedIndex !== null && expandedIndex !== i) {
+          finalOpacity = baseOpacity * (1 - globalPopRef.current * 0.8) 
+        } else {
+          finalOpacity = baseOpacity + (1 - baseOpacity) * popVal 
+        }
+
+        const zIndex = expandedIndex === i ? 1000 : Math.round((1 - absDist) * 100)
+
+        // ── HIGH-PERFORMANCE DOM WRITES (DIFFING) ──
+        // Limiting fraction digits cuts down string memory garbage heavily
+        const wStr = `${currentWidth.toFixed(1)}px`
+        const hStr = `${currentHeight.toFixed(1)}px`
+        const tStr = `translate3d(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px, ${currentTranslateZ.toFixed(2)}px) translate(-50%, -50%) rotateY(${currentRotateY.toFixed(2)}deg) scale(${currentScale.toFixed(3)})`
+        const oStr = finalOpacity.toFixed(3)
+        const zStr = zIndex.toString()
+
+        const ls = lastStylesRef.current[i]
+
+        if (ls.w !== wStr) { el.style.width = wStr; ls.w = wStr }
+        if (ls.h !== hStr) { el.style.height = hStr; ls.h = hStr }
+        if (ls.t !== tStr) { el.style.transform = tStr; ls.t = tStr }
+        if (ls.o !== oStr) { el.style.opacity = oStr; ls.o = oStr }
+        if (ls.z !== zStr) { el.style.zIndex = zStr; ls.z = zStr }
       })
-    }
 
-    // ── GSAP ticker loop ───────────────────────────────────────────────────
-    const tick = () => {
-      const scroll = scrollRef.current
-
-      // Auto-scroll: smooth ramp-up/down (mirrors OGL currentAutoScrollVelocity lerp)
-      const targetVelocity = (!isHoveringRef.current && !isDraggingRef.current)
-        ? autoScrollSpeed * 20   // scale to px/frame
-        : 0
-      autoVelocityRef.current = lerp(autoVelocityRef.current, targetVelocity, 0.05)
-      scroll.target += autoVelocityRef.current
-
-      // Ease scroll.current toward scroll.target (OGL scroll.ease)
-      scroll.current = lerp(scroll.current, scroll.target, scrollEase)
-
-      // Infinite loop via modulo — seamless because displayItems is 2× items
-      const xOffset = ((scroll.current % loopWidth) + loopWidth) % loopWidth
-
-      if (trackRef.current) {
-        trackRef.current.style.transform = `translateX(${-xOffset}px)`
+      // Sync Active Title
+      if (closestIndex !== activeIndexRef.current && titleRef.current) {
+        activeIndexRef.current = closestIndex
+        const activeItem = displayItems[closestIndex]
+        
+        if (activeItem.text) {
+          titleRef.current.textContent = activeItem.text
+          gsap.killTweensOf(titleRef.current) 
+          gsap.fromTo(titleRef.current, 
+            { opacity: 0, y: 15 }, 
+            { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' }
+          )
+        } else {
+          titleRef.current.textContent = ''
+        }
       }
 
-      applyArcTransforms(xOffset)
-      scroll.last = scroll.current
+      if (titleRef.current) {
+        const titleOpacity = (1 - globalPopRef.current).toFixed(2)
+        if (titleRef.current.style.opacity !== titleOpacity) {
+          titleRef.current.style.opacity = titleOpacity
+        }
+      }
     }
 
-    gsap.ticker.add(tick)
-    return () => gsap.ticker.remove(tick)
-  // Stable deps — only recreate if these structural values change
-  }, [loopWidth, bend, autoScrollSpeed, scrollEase])
+    gsap.ticker.add(animate)
+    return () => gsap.ticker.remove(animate)
+  }, [displayItems, layout.isMobile, expandedIndex, layout.slideHeight, layout.slideWidth])
 
-  // ── Event handlers ────────────────────────────────────────────────────────
-  const handleMouseEnter = () => { isHoveringRef.current = true }
-  const handleMouseLeave = () => {
-    isHoveringRef.current  = false
-    isDraggingRef.current  = false
-    if (containerRef.current) containerRef.current.style.cursor = 'grab'
+  // ── INTERACTION HANDLERS ──
+  const handleCardClick = (index: number) => {
+    if (hasDragged.current) return 
+    
+    if (expandedIndex === index) {
+      setExpandedIndex(null)
+    } else {
+      setExpandedIndex(index)
+      scrollTarget.current += offsetsRef.current[index]
+    }
+  }
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (expandedIndex !== null) return 
+    const normalizedDelta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 50)
+    scrollTarget.current += normalizedDelta * 0.8
   }
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    isDraggingRef.current       = true
-    dragStartXRef.current       = e.clientX
-    dragStartTargetRef.current  = scrollRef.current.target
+    if (expandedIndex !== null) return 
+    isDragging.current = true
+    hasDragged.current = false 
+    touchStartX.current = e.clientX
     if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingRef.current) return
-    const delta = dragStartXRef.current - e.clientX
-    scrollRef.current.target = dragStartTargetRef.current + delta * scrollSpeed * 0.5
+    if (!isDragging.current || expandedIndex !== null) return
+    const touchCurrentX = e.clientX
+    const deltaX = touchStartX.current - touchCurrentX
+    
+    if (Math.abs(deltaX) > 5) {
+      hasDragged.current = true
+    }
+
+    scrollTarget.current += deltaX * 1.2 
+    touchStartX.current = touchCurrentX
   }
 
   const handlePointerUp = () => {
-    isDraggingRef.current = false
+    isDragging.current = false
     if (containerRef.current) containerRef.current.style.cursor = 'grab'
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    if (e.target === containerRef.current && expandedIndex !== null) {
+      setExpandedIndex(null)
+    }
+  }
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden cursor-grab touch-none select-none"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      style={{ perspective: '1200px', transformStyle: 'preserve-3d' }}
+      className="relative w-full h-full cursor-grab touch-none select-none overflow-hidden"
+      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onClick={handleBackgroundClick}
     >
-      {/* Edge fade-out overlays */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-32 z-10 bg-linear-to-r from-black/80 to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-32 z-10 bg-linear-to-l from-black/80 to-transparent" />
-
-      {/* Scrolling track */}
-      <div
-        ref={trackRef}
-        className="flex items-center absolute top-1/2 -translate-y-1/2 will-change-transform"
-        style={{ gap: `${GAP}px`, width: `${displayItems.length * SPACING}px` }}
-      >
-        {displayItems.map((item, i) => (
-          <div
-            key={i}
-            ref={(el) => { cardRefs.current[i] = el }}
-            className="relative flex-shrink-0 overflow-hidden border border-white/10
-                       shadow-[0_25px_50px_rgba(0,0,0,0.6)] will-change-transform"
-            style={{
-              width:        ITEM_WIDTH,
-              height:       ITEM_HEIGHT,
-              borderRadius: borderRadiusPx,
+      {displayItems.map((item, i) => (
+        <div
+          key={i}
+          ref={(el) => { cardRefs.current[i] = el }}
+          onClick={() => handleCardClick(i)}
+          className={`absolute top-0 left-0 shadow-[0_15px_30px_rgba(0,0,0,0.6)] will-change-transform rounded-2xl overflow-hidden transition-shadow duration-300 ${
+            expandedIndex === i ? 'cursor-zoom-out shadow-[0_30px_60px_rgba(0,0,0,0.8)]' : 'cursor-pointer hover:shadow-[0_20px_40px_rgba(0,0,0,0.8)]'
+          }`}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedIndex(null)
             }}
+            className={`absolute z-[2000] text-white bg-black/40 backdrop-blur-md border border-white/20 hover:bg-black/60 rounded-full transition-all duration-300 
+              top-3 right-3 p-1.5 md:top-5 md:right-5 md:p-3
+              ${expandedIndex === i ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-90'}
+            `}
+            aria-label="Close"
           >
-            <img
-              src={item.image}
-              alt={item.text}
-              className="w-full h-full object-cover"
-              draggable={false}
-            />
+            <svg className="w-4 h-4 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
 
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-60 pointer-events-none" />
+          <img
+            ref={(el) => { imgRefs.current[i] = el }}
+            src={item.image}
+            alt={item.text}
+            className="w-full h-full object-cover pointer-events-none rounded-2xl"
+            draggable={false}
+          />
+        </div>
+      ))}
 
-            {/* Text label */}
-            {item.text && (
-              <div className="absolute bottom-6 left-6 right-6 pointer-events-none">
-                <p
-                  className="font-medium text-xl tracking-wide drop-shadow"
-                  style={{ color: textColor, font }}
-                >
-                  {item.text}
-                </p>
-                <div className="w-8 h-1 bg-fuchsia-500 rounded-full mt-2 opacity-80" />
-              </div>
-            )}
-          </div>
-        ))}
+      <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 pointer-events-none text-center">
+        <p 
+          ref={titleRef}
+          className="text-white font-cinzel text-xl md:text-3xl font-semibold tracking-widest uppercase drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]"
+        ></p>
       </div>
     </div>
   )
