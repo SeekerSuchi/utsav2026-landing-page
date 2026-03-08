@@ -262,5 +262,6 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
         </p>
       </div>
     </div>
+  </>
   )
 }
