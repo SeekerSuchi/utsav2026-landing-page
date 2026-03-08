@@ -51,7 +51,6 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
     gsap.set(tagline, { opacity: 0, y: 16 })
     gsap.set(line,    { scaleX: 0, opacity: 0 })
 
-    // Auto-playing timeline (no scroll trigger)
     const tl = gsap.timeline({
       onComplete: () => {
         // ── Fade-out animation (Replaced the fly-to-nav logic) ──
@@ -60,7 +59,7 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
         gsap.to([glow, line, tagline], { opacity: 0, duration: 0.35, ease: 'power2.out' })
         gsap.to(overlay, {
           opacity: 0,
-          duration: 0.5,
+          duration: 0.4,
           delay: 0.1,
           ease: 'power2.inOut',
           onComplete: () => { 
@@ -147,6 +146,9 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
       opacity: 1, y: 0,
       duration: 0.9, ease: 'power3.out',
     }, lineStart + 0.2)
+    
+    // Running at 2.5x speed so it finishes in ~1 second
+    tl.timeScale(2.5)
 
     return () => {
       tl.kill()
@@ -178,89 +180,88 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
           pointerEvents: 'none',
         }} />
 
-        <div
-          ref={glowRef}
-          style={{
-            position: 'absolute',
-            width: '60vmin',
-            height: '60vmin',
-            borderRadius: '50%',
-            background: 'radial-gradient(ellipse at center, rgba(144,40,175,0.5) 0%, rgba(222,91,234,0.22) 40%, transparent 70%)',
-            filter: 'blur(40px)',
-            zIndex: 1,
-            pointerEvents: 'none',
-          }}
-        />
+      <div
+        ref={glowRef}
+        style={{
+          position: 'absolute',
+          width: '60vmin',
+          height: '60vmin',
+          borderRadius: '50%',
+          background: 'radial-gradient(ellipse at center, rgba(144,40,175,0.5) 0%, rgba(222,91,234,0.22) 40%, transparent 70%)',
+          filter: 'blur(40px)',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}
+      />
 
-        <div
-          ref={logoContainerRef}
-          style={
-          {
+      <div
+        ref={logoContainerRef}
+        style={{
           position: 'relative',
           zIndex: 2,
           width: 'min(70vmin, 500px)',
           aspectRatio: '997.05 / 892.10',
-          }}>
-          {LAYERS.map((layer, i) => (
-            <img
-              key={layer.file}
-              ref={(el) => { layerRefs.current[i] = el }}
-              src={`/${layer.file}`}
-              alt=""
-              aria-hidden={i < LAYERS.length - 1 ? true : undefined}
-              style={{
-                position: i === 0 ? 'relative' : 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                display: 'block',
-                zIndex: STACK_Z[layer.file],
-                userSelect: 'none',
-                pointerEvents: 'none',
-              }}
-              draggable={false}
-            />
-          ))}
-          <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
-            Utsav 2026 — BMSCE
-          </span>
-        </div>
-
-        <div style={{
-          position: 'relative',
-          zIndex: 2,
-          marginTop: '2.2rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '0.9rem',
-          width: 'min(70vmin, 500px)',
         }}>
-          <div
-            ref={lineRef}
+        {LAYERS.map((layer, i) => (
+          <img
+            key={layer.file}
+            ref={(el) => { layerRefs.current[i] = el }}
+            src={`/${layer.file}`}
+            alt=""
+            aria-hidden={i < LAYERS.length - 1 ? true : undefined}
             style={{
+              position: i === 0 ? 'relative' : 'absolute',
+              inset: 0,
               width: '100%',
-              height: '1px',
-              background: 'linear-gradient(to right, transparent, rgba(222,91,234,0.5), transparent)',
-              transformOrigin: 'center',
+              height: '100%',
+              display: 'block',
+              zIndex: STACK_Z[layer.file],
+              userSelect: 'none',
+              pointerEvents: 'none',
             }}
+            draggable={false}
           />
-          <p
-            ref={taglineRef}
-            style={{
-              margin: 0,
-              fontFamily: '"Inter", sans-serif',
-              fontWeight: 300,
-              fontSize: 'clamp(0.65rem, 1.2vw, 0.82rem)',
-              letterSpacing: '0.32em',
-              textTransform: 'uppercase',
-              color: 'rgba(222, 91, 234, 0.7)',
-            }}
-          >
-            Utsav · BMSCE · 2026
-          </p>
-        </div>
+        ))}
+        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
+          Utsav 2026 — BMSCE
+        </span>
       </div>
-    </>
+
+      <div style={{
+        position: 'relative',
+        zIndex: 2,
+        marginTop: '2.2rem',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '0.9rem',
+        width: 'min(70vmin, 500px)',
+      }}>
+        <div
+          ref={lineRef}
+          style={{
+            width: '100%',
+            height: '1px',
+            background: 'linear-gradient(to right, transparent, rgba(222,91,234,0.5), transparent)',
+            transformOrigin: 'center',
+          }}
+        />
+        <p
+          ref={taglineRef}
+          style={{
+            margin: 0,
+            fontFamily: '"Inter", sans-serif',
+            fontWeight: 300,
+            fontSize: 'clamp(0.65rem, 1.2vw, 0.82rem)',
+            letterSpacing: '0.32em',
+            textTransform: 'uppercase',
+            color: 'rgba(222, 91, 234, 0.7)',
+          }}
+        >
+          Utsav · BMSCE · 2026
+        </p>
+      </div>
+    </div>
+  </>
   )
 }
