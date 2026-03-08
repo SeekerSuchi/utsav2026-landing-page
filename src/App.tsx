@@ -3,7 +3,6 @@ import Navbar from './components/Navbar'
 import LogoSection from './sections/LogoSection'
 import CountdownSection from './sections/CountdownSection'
 import LightPillar from './components/LightPillar'
-import Navbar from './components/Navbar' // <-- Imported Navbar
 import './index.css'
 
 // Lazy-load below-fold sections to reduce initial bundle size
