@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import Navbar from './components/Navbar' // 1. Import your Navbar component
+import { lazy, Suspense, useState } from 'react' // 1. Import useState
+import Navbar from './components/Navbar'
 import LogoSection from './sections/LogoSection'
 import CountdownSection from './sections/CountdownSection'
 import LightPillar from './components/LightPillar'
@@ -8,12 +8,14 @@ import './index.css'
 // Lazy-load below-fold sections to reduce initial bundle size
 const ThemeAboutSection = lazy(() => import('./sections/ThemeAboutSection'))
 const GallerySection    = lazy(() => import('./sections/GallerySection'))
-// const SponsorsSection   = lazy(() => import('./sections/SponsorsSection'))
 const PatronsSection    = lazy(() => import('./sections/PatronsSection'))
 const ContactSection    = lazy(() => import('./sections/ContactSection'))
 const FooterSection     = lazy(() => import('./sections/FooterSection'))
 
 export default function App() {
+  // 2. Create a state to track when the intro animation finishes
+  const [isIntroDone, setIsIntroDone] = useState(false)
+
   return (
     <div style={{ background: '#07050a' }}>
       {/* Fixed LightPillar background behind all sections */}
@@ -37,11 +39,12 @@ export default function App() {
       </div>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
-        {/* 2. Place the Navbar here. Because it has position: 'fixed' and a high z-index, 
-            it will sit on top of everything and hide/show based on its internal scroll logic */}
-        <Navbar />
+        {/* 3. Pass the state into the Navbar */}
+        <Navbar isVisible={isIntroDone} />
 
-        <LogoSection />
+        {/* 4. Trigger the state change when the logo animation completes */}
+        <LogoSection onAnimationComplete={() => setIsIntroDone(true)} />
+        
         <CountdownSection />
         
         <Suspense fallback={null}>
