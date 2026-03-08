@@ -49,15 +49,11 @@ export default function ThemeAboutSection() {
             <div className="mb-7 h-px w-16 origin-left bg-linear-to-r from-amber-300/50 to-transparent" />
 
             <p className="relative max-w-prose font-inter text-[0.95rem] leading-[1.85] text-white/80 sm:text-base sm:leading-8">
-              Utsav Trayana is a festival where lots of different people come together. Everyone has their own story, their own culture, and their own talents. Some people like to dance, some like to sing, some like to draw, speak, or create new ideas.
+              A grand celebration where creativity meets culture and every journey finds its voice. True to its name, Trayana represents the coming together of diverse paths where tradition, transformation, and tomorrow intersect to create something powerful and meaningful. It is more than just a fest; it is an immersive experience that honors individuality while celebrating unity.
               <br /><br />
-              "Celebration of Creativity, Culture and Journeys coming together" simply means this: People from different places and backgrounds meet in one place and share what makes them special.
+              At Utsav Trayana, art, culture, technology, and innovation blend seamlessly, reflecting how different perspectives can coexist, collaborate, and elevate one another. Each participant brings their own story, talent, and background, adding to a vibrant tapestry of shared experiences.
               <br /><br />
-              Trayana shows that even though we are all different, we can work together and make something beautiful. Like when different colors mix to make a bright painting or when many instruments play together to make one song.
-              <br /><br />
-              At Utsav, everyone gets a chance to shine. No one loses who they are. Instead, when everyone joins in, the festival becomes bigger, happier, and more exciting.
-              <br /><br />
-              It is not just a fest. It is many stories coming together to create one big, joyful memory.
+              Join us as our campus transforms into a living canvas of colors, rhythms, ideas, and connections because at Utsav Trayana, every path matters, every voice echoes, and together, we create a celebration that is stronger, richer, and truly unforgettable.
             </p>
           </GlassCard>
 

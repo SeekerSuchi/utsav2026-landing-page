@@ -25,9 +25,10 @@ function getDaysLeft(): number {
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
 }
 
-function pad(n: number, digits = 2): string {
-  return String(n).padStart(digits, '0')
-}
+const pad = (n: number, digits = 2): string => {
+  const s = Math.max(0, Math.floor(n)).toString();
+  return s.padStart(digits, '0');
+};
 
 function getTimeLeft() {
   const now  = new Date()
@@ -61,11 +62,17 @@ function RollDigit({ digit, fontSize }: { digit: string, fontSize: string }) {
     if (!track) return
     const from = parseInt(prevDigit.current, 10)
     const to   = parseInt(digit, 10)
-    if (isNaN(from) || isNaN(to) || from === to) {
-      prevDigit.current = digit
-      return
-    }
-    gsap.fromTo(track, { y: `-${from}em` }, { y: `-${to}em`, duration: 0.45, ease: 'power3.out' })
+    
+    // Safety check: ensure digits are valid numbers
+    const safeFrom = isNaN(from) ? 0 : from;
+    const safeTo = isNaN(to) ? 0 : to;
+
+    if (safeFrom === safeTo) return;
+
+    gsap.fromTo(track, 
+      { y: `-${safeFrom}em` }, 
+      { y: `-${safeTo}em`, duration: 0.45, ease: 'power3.out', overwrite: true }
+    )
     prevDigit.current = digit
   }, [digit])
 
