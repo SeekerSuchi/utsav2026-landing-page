@@ -32,7 +32,6 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
   const glowRef    = useRef<HTMLDivElement>(null)
   const taglineRef = useRef<HTMLParagraphElement>(null)
   const lineRef    = useRef<HTMLDivElement>(null)
-  const navLogoRef = useRef<HTMLDivElement>(null)
   const logoContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -41,9 +40,9 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
     const glow           = glowRef.current
     const tagline        = taglineRef.current
     const line           = lineRef.current
-    const navLogo        = navLogoRef.current
     const logoContainer  = logoContainerRef.current
-    if (!overlay || layers.some((l) => !l) || !glow || !tagline || !line || !navLogo || !logoContainer) return
+    
+    if (!overlay || layers.some((l) => !l) || !glow || !tagline || !line || !logoContainer) return
 
     layers.forEach((el) => {
       gsap.set(el, { opacity: 0, scale: 0.94, filter: 'blur(12px)' })
@@ -51,64 +50,39 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
     gsap.set(glow,    { opacity: 0, scale: 0.5 })
     gsap.set(tagline, { opacity: 0, y: 16 })
     gsap.set(line,    { scaleX: 0, opacity: 0 })
-    gsap.set(navLogo, { opacity: 0, x: -20, scale: 0.6 })
 
     // Auto-playing timeline (no scroll trigger)
     const tl = gsap.timeline({
       onComplete: () => {
-        onAnimationComplete?.()
-
-        // ── Fly-to-nav animation ──────────────────────────────────
-        const logoRect = logoContainer.getBoundingClientRect()
-        const navRect  = navLogo.getBoundingClientRect()
-
-        // 1. Set logo container to fixed at its exact current viewport position,
-        //    then move it outside the overlay so it survives the overlay fade-out.
-        gsap.set(logoContainer, {
-          position: 'fixed',
-          top:      logoRect.top,
-          left:     logoRect.left,
-          width:    logoRect.width,
-          height:   logoRect.height,
-          zIndex:   200,
-          margin:   0,
-        })
-        document.body.appendChild(logoContainer)
-
-        // 2. Fade out decorative elements + overlay background
+        // ── Fade-out animation (Replaced the fly-to-nav logic) ──
+        
+        // 1. Fade out decorative elements + overlay background
         gsap.to([glow, line, tagline], { opacity: 0, duration: 0.35, ease: 'power2.out' })
         gsap.to(overlay, {
           opacity: 0,
           duration: 0.5,
           delay: 0.1,
           ease: 'power2.inOut',
-          onComplete: () => { overlay.style.display = 'none' },
+          onComplete: () => { 
+            overlay.style.display = 'none' 
+            onAnimationComplete?.()
+          },
         })
 
-        // 3. Brief pause then fly the logo to the nav position
-        const logoCx = logoRect.left + logoRect.width  / 2
-        const logoCy = logoRect.top  + logoRect.height / 2
-        const navCx  = navRect.left  + navRect.width   / 2
-        const navCy  = navRect.top   + navRect.height  / 2
-        const flyScale = navRect.width / logoRect.width
-
+        // 2. Elegantly fade and slightly shrink the main logo
         gsap.to(logoContainer, {
-          x: navCx - logoCx,
-          y: navCy - logoCy,
-          scale: flyScale,
-          transformOrigin: '50% 50%',
-          duration: 0.85,
-          delay: 0.45,
-          ease: 'power3.inOut',
+          opacity: 0,
+          scale: 0.9,
+          duration: 0.5,
+          ease: 'power2.inOut',
           onComplete: () => {
-            // Snap the static nav logo in and remove the flying clone
-            gsap.set(navLogo, { opacity: 1, x: 0, scale: 1 })
             logoContainer.style.display = 'none'
           },
         })
       },
     })
 
+    // --- Original Intro Animations ---
     tl.to(glow, {
       opacity: 0.6, scale: 1.6,
       duration: 1.8, ease: 'power2.out',
@@ -156,6 +130,7 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
       duration: 0.4, ease: 'sine.inOut',
       stagger: 0,
     }, 0.1 + 6 * 0.28 + 0.6)
+    
     tl.to(layers, {
       scale: 1,
       duration: 0.5, ease: 'sine.inOut',
@@ -180,40 +155,6 @@ export default function LogoSection({ onAnimationComplete }: LogoSectionProps) {
 
   return (
     <>
-      {/* Persistent navbar logo (fixed, top-left) */}
-      <div
-        ref={navLogoRef}
-        aria-hidden
-        style={{
-          position: 'fixed',
-          top: '1.1rem',
-          left: '1.4rem',
-          zIndex: 100,
-          width: '52px',
-          pointerEvents: 'none',
-        }}
-      >
-        <div style={{ position: 'relative', width: '52px', aspectRatio: '997.05 / 892.10' }}>
-          {LAYERS.map((layer, i) => (
-            <img
-              key={layer.file}
-              src={`/${layer.file}`}
-              alt=""
-              style={{
-                position: i === 0 ? 'relative' : 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                display: 'block',
-                zIndex: STACK_Z[layer.file],
-                userSelect: 'none',
-              }}
-              draggable={false}
-            />
-          ))}
-        </div>
-      </div>
-
       {/* Loading overlay */}
       <div
         ref={overlayRef}
