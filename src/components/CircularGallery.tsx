@@ -1,747 +1,364 @@
-import { Camera, Mesh, Plane, Program, Renderer, Texture, Transform } from 'ogl';
-import { useEffect, useRef } from 'react';
-
-type GL = Renderer['gl'];
-
-function debounce<T extends (...args: unknown[]) => void>(func: T, wait: number) {
-  let timeout: number;
-  return function (this: unknown, ...args: Parameters<T>) {
-    window.clearTimeout(timeout);
-    timeout = window.setTimeout(() => func.apply(this, args), wait);
-  };
-}
-
-function lerp(p1: number, p2: number, t: number): number {
-  return p1 + (p2 - p1) * t;
-}
-
-function autoBind(instance: object): void {
-  const proto = Object.getPrototypeOf(instance);
-  Object.getOwnPropertyNames(proto).forEach(key => {
-    const value = (instance as Record<string, unknown>)[key];
-    if (key !== 'constructor' && typeof value === 'function') {
-      (instance as Record<string, (...args: unknown[]) => unknown>)[key] = value.bind(instance);
-    }
-  });
-}
-
-function getFontSize(font: string): number {
-  const match = font.match(/(\d+)px/);
-  return match ? parseInt(match[1], 10) : 30;
-}
-
-function createTextTexture(
-  gl: GL,
-  text: string,
-  font: string = 'bold 30px monospace',
-  color: string = 'black'
-): { texture: Texture; width: number; height: number } {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('Could not get 2d context');
-
-  context.font = font;
-  const metrics = context.measureText(text);
-  const textWidth = Math.ceil(metrics.width);
-  const fontSize = getFontSize(font);
-  const textHeight = Math.ceil(fontSize * 1.2);
-
-  canvas.width = textWidth + 20;
-  canvas.height = textHeight + 20;
-
-  context.font = font;
-  context.fillStyle = color;
-  context.textBaseline = 'middle';
-  context.textAlign = 'center';
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillText(text, canvas.width / 2, canvas.height / 2);
-
-  const texture = new Texture(gl, { generateMipmaps: false });
-  texture.image = canvas;
-  return { texture, width: canvas.width, height: canvas.height };
-}
-
-interface TitleProps {
-  gl: GL;
-  plane: Mesh;
-  renderer: Renderer;
-  text: string;
-  textColor?: string;
-  font?: string;
-}
-
-class Title {
-  gl: GL;
-  plane: Mesh;
-  renderer: Renderer;
-  text: string;
-  textColor: string;
-  font: string;
-  mesh!: Mesh;
-
-  constructor({ gl, plane, renderer, text, textColor = '#545050', font = '30px sans-serif' }: TitleProps) {
-    autoBind(this);
-    this.gl = gl;
-    this.plane = plane;
-    this.renderer = renderer;
-    this.text = text;
-    this.textColor = textColor;
-    this.font = font;
-    this.createMesh();
-  }
-
-  createMesh() {
-    const { texture, width, height } = createTextTexture(this.gl, this.text, this.font, this.textColor);
-    const geometry = new Plane(this.gl);
-    const program = new Program(this.gl, {
-      vertex: `
-        attribute vec3 position;
-        attribute vec2 uv;
-        uniform mat4 modelViewMatrix;
-        uniform mat4 projectionMatrix;
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragment: `
-        precision highp float;
-        uniform sampler2D tMap;
-        varying vec2 vUv;
-        void main() {
-          vec4 color = texture2D(tMap, vUv);
-          if (color.a < 0.1) discard;
-          gl_FragColor = color;
-        }
-      `,
-      uniforms: { tMap: { value: texture } },
-      transparent: true
-    });
-    this.mesh = new Mesh(this.gl, { geometry, program });
-    const aspect = width / height;
-    const textHeightScaled = this.plane.scale.y * 0.15;
-    const textWidthScaled = textHeightScaled * aspect;
-    this.mesh.scale.set(textWidthScaled, textHeightScaled, 1);
-    this.mesh.position.y = -this.plane.scale.y * 0.5 - textHeightScaled * 0.5 - 0.05;
-    this.mesh.setParent(this.plane);
-  }
-}
-
-interface ScreenSize {
-  width: number;
-  height: number;
-}
-
-interface Viewport {
-  width: number;
-  height: number;
-}
-
-interface MediaProps {
-  geometry: Plane;
-  gl: GL;
-  image: string;
-  index: number;
-  length: number;
-  renderer: Renderer;
-  scene: Transform;
-  screen: ScreenSize;
-  text: string;
-  viewport: Viewport;
-  bend: number;
-  textColor: string;
-  borderRadius?: number;
-  font?: string;
-}
-
-class Media {
-  extra: number = 0;
-  geometry: Plane;
-  gl: GL;
-  image: string;
-  index: number;
-  length: number;
-  renderer: Renderer;
-  scene: Transform;
-  screen: ScreenSize;
-  text: string;
-  viewport: Viewport;
-  bend: number;
-  textColor: string;
-  borderRadius: number;
-  font?: string;
-  program!: Program;
-  plane!: Mesh;
-  title!: Title;
-  scale!: number;
-  padding!: number;
-  width!: number;
-  widthTotal!: number;
-  x!: number;
-  speed: number = 0;
-  isBefore: boolean = false;
-  isAfter: boolean = false;
-  isLoaded: boolean = false;
-  observer?: IntersectionObserver;
-  isVisible: boolean = false;
-
-  constructor({
-    geometry,
-    gl,
-    image,
-    index,
-    length,
-    renderer,
-    scene,
-    screen,
-    text,
-    viewport,
-    bend,
-    textColor,
-    borderRadius = 0,
-    font
-  }: MediaProps) {
-    this.geometry = geometry;
-    this.gl = gl;
-    this.image = image;
-    this.index = index;
-    this.length = length;
-    this.renderer = renderer;
-    this.scene = scene;
-    this.screen = screen;
-    this.text = text;
-    this.viewport = viewport;
-    this.bend = bend;
-    this.textColor = textColor;
-    this.borderRadius = borderRadius;
-    this.font = font;
-    this.createShader();
-    this.createMesh();
-    // Only create titles for initial batch, or optimize as needed
-    this.createTitle();
-    this.onResize();
-  }
-
-  createShader() {
-    const texture = new Texture(this.gl, {
-      generateMipmaps: false, // Disabling mipmaps for less GPU memory
-      minFilter: this.gl.LINEAR,
-      magFilter: this.gl.LINEAR
-    });
-    this.program = new Program(this.gl, {
-      depthTest: false,
-      depthWrite: false,
-      vertex: `
-        precision mediump float;
-        attribute vec3 position;
-        attribute vec2 uv;
-        uniform mat4 modelViewMatrix;
-        uniform mat4 projectionMatrix;
-        uniform float uTime;
-        uniform float uSpeed;
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          vec3 p = position;
-          // Wave logic
-          p.z = (sin(p.x * 4.0 + uTime) * 1.5 + cos(p.y * 2.0 + uTime) * 1.5) * (0.02 + uSpeed * 0.2);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        }
-      `,
-      fragment: `
-        precision mediump float;
-        uniform vec2 uImageSizes;
-        uniform vec2 uPlaneSizes;
-        uniform sampler2D tMap;
-        uniform float uBorderRadius;
-        uniform float uAlpha;
-        varying vec2 vUv;
-        
-        float roundedBoxSDF(vec2 p, vec2 b, float r) {
-          vec2 d = abs(p) - b;
-          return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0) - r;
-        }
-        
-        void main() {
-          vec2 ratio = vec2(
-            min((uPlaneSizes.x / uPlaneSizes.y) / (uImageSizes.x / uImageSizes.y), 1.0),
-            min((uPlaneSizes.y / uPlaneSizes.x) / (uImageSizes.y / uImageSizes.x), 1.0)
-          );
-          vec2 uv = vec2(
-            vUv.x * ratio.x + (1.0 - ratio.x) * 0.5,
-            vUv.y * ratio.y + (1.0 - ratio.y) * 0.5
-          );
-          vec4 color = texture2D(tMap, uv);
-          
-          float d = roundedBoxSDF(vUv - 0.5, vec2(0.5 - uBorderRadius), uBorderRadius);
-          
-          float edgeSmooth = 0.005; // Slightly larger for better perf
-          float alpha = (1.0 - smoothstep(-edgeSmooth, edgeSmooth, d)) * uAlpha;
-          
-          gl_FragColor = vec4(color.rgb, alpha);
-        }
-      `,
-      uniforms: {
-        tMap: { value: texture },
-        uPlaneSizes: { value: [0, 0] },
-        uImageSizes: { value: [0, 0] },
-        uSpeed: { value: 0 },
-        uTime: { value: 100 * Math.random() },
-        uBorderRadius: { value: this.borderRadius },
-        uAlpha: { value: 0 }
-      },
-      transparent: true
-    });
-  }
-
-  loadTexture() {
-    if (this.isLoaded) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = this.image;
-    img.onload = () => {
-      this.program.uniforms.tMap.value.image = img;
-      this.program.uniforms.uImageSizes.value = [img.naturalWidth, img.naturalHeight];
-      this.isLoaded = true;
-      // Simple fade in
-      this.program.uniforms.uAlpha.value = 1;
-    };
-  }
-
-  createMesh() {
-    this.plane = new Mesh(this.gl, {
-      geometry: this.geometry,
-      program: this.program
-    });
-    this.plane.setParent(this.scene);
-  }
-
-  createTitle() {
-    this.title = new Title({
-      gl: this.gl,
-      plane: this.plane,
-      renderer: this.renderer,
-      text: this.text,
-      textColor: this.textColor,
-      font: this.font
-    });
-  }
-
-  update(scroll: { current: number; last: number }, direction: 'right' | 'left') {
-    this.plane.position.x = this.x - scroll.current - this.extra;
-
-    const x = this.plane.position.x;
-    const H = this.viewport.width / 2;
-
-    if (this.bend === 0) {
-      this.plane.position.y = 0;
-      this.plane.rotation.z = 0;
-    } else {
-      const B_abs = Math.abs(this.bend);
-      const R = (H * H + B_abs * B_abs) / (2 * B_abs);
-      const effectiveX = Math.min(Math.abs(x), H);
-
-      const arc = R - Math.sqrt(R * R - effectiveX * effectiveX);
-      if (this.bend > 0) {
-        this.plane.position.y = -arc;
-        this.plane.rotation.z = -Math.sign(x) * Math.asin(effectiveX / R);
-      } else {
-        this.plane.position.y = arc;
-        this.plane.rotation.z = Math.sign(x) * Math.asin(effectiveX / R);
-      }
-    }
-
-    this.speed = scroll.current - scroll.last;
-    this.program.uniforms.uTime.value += 0.01; // Slower time increment for smoother wave
-    this.program.uniforms.uSpeed.value = lerp(this.program.uniforms.uSpeed.value, this.speed, 0.1);
-
-    const planeOffset = this.plane.scale.x / 2;
-    const viewportOffset = this.viewport.width / 2;
-    this.isBefore = this.plane.position.x + planeOffset < -viewportOffset;
-    this.isAfter = this.plane.position.x - planeOffset > viewportOffset;
-
-    // Load texture and enable visibility if entering or near viewport
-    if (Math.abs(this.plane.position.x) < viewportOffset * 3) {
-      this.loadTexture();
-      this.isVisible = true;
-    } else {
-      this.isVisible = false;
-    }
-
-    if (this.isVisible) {
-      this.plane.visible = true;
-      if (this.title && this.title.mesh) this.title.mesh.visible = true;
-    } else {
-      this.plane.visible = false;
-      if (this.title && this.title.mesh) this.title.mesh.visible = false;
-    }
-
-    if (direction === 'right' && this.isBefore) {
-      this.extra -= this.widthTotal;
-      this.isBefore = this.isAfter = false;
-    }
-    if (direction === 'left' && this.isAfter) {
-      this.extra += this.widthTotal;
-      this.isBefore = this.isAfter = false;
-    }
-  }
-
-  onResize({ screen, viewport }: { screen?: ScreenSize; viewport?: Viewport } = {}) {
-    if (screen) this.screen = screen;
-    if (viewport) {
-      this.viewport = viewport;
-      if (this.plane.program.uniforms.uViewportSizes) {
-        this.plane.program.uniforms.uViewportSizes.value = [this.viewport.width, this.viewport.height];
-      }
-    }
-    this.scale = this.screen.height / 1500;
-    this.plane.scale.y = (this.viewport.height * (900 * this.scale)) / this.screen.height;
-    this.plane.scale.x = (this.viewport.width * (700 * this.scale)) / this.screen.width;
-    this.plane.program.uniforms.uPlaneSizes.value = [this.plane.scale.x, this.plane.scale.y];
-    this.padding = 2;
-    this.width = this.plane.scale.x + this.padding;
-    this.widthTotal = this.width * this.length;
-    this.x = this.width * this.index;
-  }
-}
-
-interface AppConfig {
-  items?: { image: string; text: string }[];
-  bend?: number;
-  textColor?: string;
-  borderRadius?: number;
-  font?: string;
-  scrollSpeed?: number;
-  scrollEase?: number;
-}
-
-class App {
-  container: HTMLElement;
-  scrollSpeed: number;
-  scroll: {
-    ease: number;
-    current: number;
-    target: number;
-    last: number;
-    position?: number;
-  };
-  onCheckDebounce: (...args: unknown[]) => void;
-  renderer!: Renderer;
-  gl!: GL;
-  camera!: Camera;
-  scene!: Transform;
-  planeGeometry!: Plane;
-  medias: Media[] = [];
-  mediasImages: { image: string; text: string }[] = [];
-  screen!: { width: number; height: number };
-  viewport!: { width: number; height: number };
-  raf: number = 0;
-
-  boundOnResize!: () => void;
-  boundOnWheel!: (e: Event) => void;
-  boundOnTouchDown!: (e: MouseEvent | TouchEvent) => void;
-  boundOnTouchMove!: (e: MouseEvent | TouchEvent) => void;
-  boundOnTouchUp!: () => void;
-  boundOnMouseEnter!: () => void;
-  boundOnMouseLeave!: () => void;
-
-  isDown: boolean = false;
-  start: number = 0;
-  isHovering: boolean = false;
-  autoScrollSpeed: number = 0.1; // Optimized speed for auto-rotation
-
-  constructor(
-    container: HTMLElement,
-    {
-      items,
-      bend = 1,
-      textColor = '#ffffff',
-      borderRadius = 0,
-      font = 'bold 30px Figtree',
-      scrollSpeed = 2,
-      scrollEase = 0.05
-    }: AppConfig
-  ) {
-    document.documentElement.classList.remove('no-js');
-    this.container = container;
-    this.scrollSpeed = scrollSpeed;
-    this.scroll = { ease: scrollEase, current: 0, target: 0, last: 0 };
-    this.onCheckDebounce = debounce(this.onCheck.bind(this), 200);
-    this.createRenderer();
-    this.createCamera();
-    this.createScene();
-    this.onResize();
-    this.createGeometry();
-    this.createMedias(items, bend, textColor, borderRadius, font);
-    this.update();
-    this.addEventListeners();
-  }
-
-  createRenderer() {
-    this.renderer = new Renderer({
-      alpha: true,
-      antialias: true,
-      dpr: Math.min(window.devicePixelRatio || 1, 2)
-    });
-    this.gl = this.renderer.gl;
-    this.gl.clearColor(0, 0, 0, 0);
-    this.container.appendChild(this.renderer.gl.canvas as HTMLCanvasElement);
-  }
-
-  createCamera() {
-    this.camera = new Camera(this.gl);
-    this.camera.fov = 45;
-    this.camera.position.z = 20;
-  }
-
-  createScene() {
-    this.scene = new Transform();
-  }
-
-  createGeometry() {
-    // Reduced from 50/100 to 20/40 segments to significantly reduce vertex count
-    this.planeGeometry = new Plane(this.gl, {
-      heightSegments: 20,
-      widthSegments: 40
-    });
-  }
-
-  createMedias(
-    items: { image: string; text: string }[] | undefined,
-    bend: number = 1,
-    textColor: string,
-    borderRadius: number,
-    font: string
-  ) {
-    const defaultItems = [
-      {
-        image: '/gallery/img1.webp',
-        text: ''
-      },
-      {
-        image: '/gallery/img2.webp',
-        text: ''
-      },
-      {
-        image: '/gallery/img3.webp',
-        text: 'Waterfall'
-      },
-      {
-        image: '/gallery/img4.webp',
-        text: 'Strawberries'
-      },
-      {
-        image: '/gallery/img5.webp',
-        text: 'Deep Diving'
-      },
-      {
-        image: '/gallery/img6.webp',
-        text: 'Train Track'
-      },
-      {
-        image: '/gallery/img7.webp',
-        text: 'Santorini'
-      },
-      {
-        image: '/gallery/img8.webp',
-        text: 'Blurry Lights'
-      },
-      {
-        image: '/gallery/img9.webp',
-        text: 'New York'
-      },
-      {
-        image: '/gallery/img10.webp',
-        text: 'Good Boy'
-      },
-      {
-        image: '/gallery/img11.webp',
-        text: 'Coastline'
-      }
-    ];
-    const galleryItems = items && items.length ? items : defaultItems;
-    this.mediasImages = galleryItems.concat(galleryItems);
-    this.medias = this.mediasImages.map((data, index) => {
-      return new Media({
-        geometry: this.planeGeometry,
-        gl: this.gl,
-        image: data.image,
-        index,
-        length: this.mediasImages.length,
-        renderer: this.renderer,
-        scene: this.scene,
-        screen: this.screen,
-        text: data.text,
-        viewport: this.viewport,
-        bend,
-        textColor,
-        borderRadius,
-        font
-      });
-    });
-  }
-
-  onTouchDown(e: MouseEvent | TouchEvent) {
-    this.isDown = true;
-    this.scroll.position = this.scroll.current;
-    this.start = 'touches' in e ? e.touches[0].clientX : e.clientX;
-  }
-
-  onTouchMove(e: MouseEvent | TouchEvent) {
-    if (!this.isDown) return;
-    const x = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const distance = (this.start - x) * (this.scrollSpeed * 0.025);
-    this.scroll.target = (this.scroll.position ?? 0) + distance;
-  }
-
-  onTouchUp() {
-    this.isDown = false;
-    this.onCheck();
-  }
-
-  onMouseEnter() {
-    this.isHovering = true;
-  }
-
-  onMouseLeave() {
-    this.isHovering = false;
-  }
-
-  onWheel(e: Event) {
-    const wheelEvent = e as WheelEvent & { wheelDelta?: number; detail?: number };
-    const delta = wheelEvent.deltaY || wheelEvent.wheelDelta || wheelEvent.detail || 0;
-    
-    // Normalize delta for smoother cross-browser feel
-    const normalizedDelta = Math.sign(delta) * Math.min(Math.abs(delta), 100);
-    this.scroll.target += (normalizedDelta > 0 ? this.scrollSpeed : -this.scrollSpeed) * 0.15;
-    this.onCheckDebounce();
-  }
-
-  onCheck() {
-    if (!this.medias || !this.medias[0]) return;
-    const width = this.medias[0].width;
-    const itemIndex = Math.round(Math.abs(this.scroll.target) / width);
-    const item = width * itemIndex;
-    this.scroll.target = this.scroll.target < 0 ? -item : item;
-  }
-
-  onResize() {
-    this.screen = {
-      width: this.container.clientWidth,
-      height: this.container.clientHeight
-    };
-    this.renderer.setSize(this.screen.width, this.screen.height);
-    this.camera.perspective({
-      aspect: this.screen.width / this.screen.height
-    });
-    const fov = (this.camera.fov * Math.PI) / 180;
-    const height = 2 * Math.tan(fov / 2) * this.camera.position.z;
-    const width = height * this.camera.aspect;
-    this.viewport = { width, height };
-    if (this.medias) {
-      this.medias.forEach(media => media.onResize({ screen: this.screen, viewport: this.viewport }));
-    }
-  }
-
-  update() {
-    // Only update if visible to save CPU/GPU
-    const rect = this.container.getBoundingClientRect();
-    const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
-    
-    if (isVisible) {
-      // Apply auto-scroll when not hovering and not dragging
-      if (!this.isHovering && !this.isDown) {
-        this.scroll.target += this.autoScrollSpeed;
-      }
-
-      this.scroll.current = lerp(this.scroll.current, this.scroll.target, this.scroll.ease);
-      const direction = this.scroll.current > this.scroll.last ? 'right' : 'left';
-      if (this.medias) {
-        this.medias.forEach(media => media.update(this.scroll, direction));
-      }
-      this.renderer.render({ scene: this.scene, camera: this.camera });
-      this.scroll.last = this.scroll.current;
-    }
-    
-    this.raf = window.requestAnimationFrame(this.update.bind(this));
-  }
-
-  addEventListeners() {
-    this.boundOnResize = this.onResize.bind(this);
-    this.boundOnWheel = this.onWheel.bind(this);
-    this.boundOnTouchDown = this.onTouchDown.bind(this);
-    this.boundOnTouchMove = this.onTouchMove.bind(this);
-    this.boundOnTouchUp = this.onTouchUp.bind(this);
-    this.boundOnMouseEnter = this.onMouseEnter.bind(this);
-    this.boundOnMouseLeave = this.onMouseLeave.bind(this);
-    
-    window.addEventListener('resize', this.boundOnResize);
-    window.addEventListener('mousewheel', this.boundOnWheel, { passive: true });
-    window.addEventListener('wheel', this.boundOnWheel, { passive: true });
-    window.addEventListener('mousedown', this.boundOnTouchDown);
-    window.addEventListener('mousemove', this.boundOnTouchMove);
-    window.addEventListener('mouseup', this.boundOnTouchUp);
-    window.addEventListener('touchstart', this.boundOnTouchDown, { passive: true });
-    window.addEventListener('touchmove', this.boundOnTouchMove, { passive: true });
-    window.addEventListener('touchend', this.boundOnTouchUp);
-    this.container.addEventListener('mouseenter', this.boundOnMouseEnter);
-    this.container.addEventListener('mouseleave', this.boundOnMouseLeave);
-  }
-
-  destroy() {
-    window.cancelAnimationFrame(this.raf);
-    window.removeEventListener('resize', this.boundOnResize);
-    window.removeEventListener('mousewheel', this.boundOnWheel);
-    window.removeEventListener('wheel', this.boundOnWheel);
-    window.removeEventListener('mousedown', this.boundOnTouchDown);
-    window.removeEventListener('mousemove', this.boundOnTouchMove);
-    window.removeEventListener('mouseup', this.boundOnTouchUp);
-    window.removeEventListener('touchstart', this.boundOnTouchDown);
-    window.removeEventListener('touchmove', this.boundOnTouchMove);
-    window.removeEventListener('touchend', this.boundOnTouchUp);
-    this.container.removeEventListener('mouseenter', this.boundOnMouseEnter);
-    this.container.removeEventListener('mouseleave', this.boundOnMouseLeave);
-    if (this.renderer && this.renderer.gl && this.renderer.gl.canvas.parentNode) {
-      this.renderer.gl.canvas.parentNode.removeChild(this.renderer.gl.canvas as HTMLCanvasElement);
-    }
-  }
-}
+import { useEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
 
 interface CircularGalleryProps {
-  items?: { image: string; text: string }[];
-  bend?: number;
-  textColor?: string;
-  borderRadius?: number;
-  font?: string;
-  scrollSpeed?: number;
-  scrollEase?: number;
+  items: { image: string; text: string }[]
+  isPaused?: boolean
 }
+
+// ── CONFIGURATION ──
+const SCROLL_LERP = 0.06
+const AUTO_SCROLL_SPEED = 1.5
+const POP_LERP = 0.05 
 
 export default function CircularGallery({
   items,
-  bend = 3,
-  textColor = '#ffffff',
-  borderRadius = 0.05,
-  font = 'bold 30px Figtree',
-  scrollSpeed = 2,
-  scrollEase = 0.05
+  isPaused = false,
 }: CircularGalleryProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([])
+  const imgRefs = useRef<(HTMLImageElement | null)[]>([]) 
+  const titleRef = useRef<HTMLParagraphElement>(null)
+
+  // Layout & Interaction State
+  const [layout, setLayout] = useState({ slideWidth: 280, slideHeight: 380, isMobile: false })
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+
+  // Scroll & Animation Refs
+  const scrollTarget = useRef(0)
+  const scrollCurrent = useRef(0)
+  const isPausedRef = useRef(isPaused)
+  const activeIndexRef = useRef(-1)
+  
+  // Drag Refs
+  const isDragging = useRef(false)
+  const hasDragged = useRef(false) 
+  const touchStartX = useRef(0)
+
+  // ── OPTIMIZATION CACHES ──
+  const dims = useRef({ width: 0, height: 0, cx: 0, arcBaselineY: 0, slideGap: 300, trackWidth: 0 })
+  const offsetsRef = useRef<number[]>([]) 
+  const popValuesRef = useRef<number[]>([]) 
+  const globalPopRef = useRef(0) 
+  
+  // Caches pre-calculated target widths/heights so we don't read DOM properties inside the 60fps loop
+  const targetSizesRef = useRef<{ w: number, h: number }[]>([])
+  
+  // Caches the exact string values currently applied to the DOM to prevent Layout Thrashing
+  const lastStylesRef = useRef<{ w: string, h: string, t: string, o: string, z: string }[]>([])
+
+  const displayItems = [...items, ...items, ...items]
+
+  // Initialize tracking arrays
+  if (popValuesRef.current.length !== displayItems.length) {
+    popValuesRef.current = new Array(displayItems.length).fill(0)
+    offsetsRef.current = new Array(displayItems.length).fill(0)
+    lastStylesRef.current = Array(displayItems.length).fill(null).map(() => ({ w: '', h: '', t: '', o: '', z: '' }))
+  }
+
   useEffect(() => {
-    if (!containerRef.current) return;
-    const app = new App(containerRef.current, {
-      items,
-      bend,
-      textColor,
-      borderRadius,
-      font,
-      scrollSpeed,
-      scrollEase
-    });
-    return () => {
-      app.destroy();
-    };
-  }, [items, bend, textColor, borderRadius, font, scrollSpeed, scrollEase]);
-  return <div className="w-full h-full overflow-hidden cursor-grab active:cursor-grabbing" ref={containerRef} />;
+    isPausedRef.current = isPaused
+  }, [isPaused])
+
+  // Handle Resize and Dimensions
+  useEffect(() => {
+    const updateDims = () => {
+      const w = containerRef.current?.offsetWidth || window.innerWidth
+      const h = containerRef.current?.offsetHeight || window.innerHeight
+      const isMobile = w < 768
+      
+      const slideWidth = isMobile ? w * 0.6 : 280
+      const slideHeight = isMobile ? slideWidth * 1.3 : 380
+      const slideGap = isMobile ? w * 0.5 : w * 0.15 
+
+      setLayout({ slideWidth, slideHeight, isMobile })
+
+      dims.current = {
+        width: w,
+        height: h,
+        cx: w / 2,
+        arcBaselineY: isMobile ? h * 0.4 : h * 0.45,
+        slideGap,
+        trackWidth: displayItems.length * slideGap
+      }
+
+      // Clear size cache on resize so it recalculates perfectly for the new screen dimensions
+      targetSizesRef.current = []
+    }
+    
+    updateDims()
+    window.addEventListener('resize', updateDims)
+    return () => window.removeEventListener('resize', updateDims)
+  }, [displayItems.length])
+
+  // Core Animation Loop
+  useEffect(() => {
+    const animate = () => {
+      const dt = gsap.ticker.deltaRatio(60)
+      const isExpanded = expandedIndex !== null
+
+      // Auto-Scroll Logic
+      if (!isPausedRef.current && !isDragging.current && !isExpanded) {
+        scrollTarget.current += AUTO_SCROLL_SPEED * dt
+      }
+
+      // Smooth scroll lerp with threshold clamping to settle microscopic decimals
+      const ease = 1 - Math.pow(1 - SCROLL_LERP, dt)
+      scrollCurrent.current += (scrollTarget.current - scrollCurrent.current) * ease
+      if (Math.abs(scrollTarget.current - scrollCurrent.current) < 0.01) {
+        scrollCurrent.current = scrollTarget.current
+      }
+
+      // Global Pop Lerp Clamping
+      const targetGlobal = isExpanded ? 1 : 0
+      globalPopRef.current += (targetGlobal - globalPopRef.current) * (POP_LERP * dt)
+      if (Math.abs(globalPopRef.current - targetGlobal) < 0.001) {
+        globalPopRef.current = targetGlobal
+      }
+
+      const { width: containerWidth, height: containerHeight, cx: windowCenterX, arcBaselineY, slideGap, trackWidth } = dims.current
+      if (trackWidth === 0) return
+
+      let closestDist = Infinity
+      let closestIndex = -1
+
+      cardRefs.current.forEach((el, i) => {
+        if (!el) return
+
+        let wrappedOffsetX = (((i * slideGap - scrollCurrent.current) % trackWidth) + trackWidth) % trackWidth
+        if (wrappedOffsetX > trackWidth / 2) wrappedOffsetX -= trackWidth
+        
+        offsetsRef.current[i] = wrappedOffsetX
+
+        const slideCenterX = windowCenterX + wrappedOffsetX
+        const normalizedDist = wrappedOffsetX / (containerWidth * 0.5)
+        const absDist = Math.min(Math.abs(normalizedDist), 1.5)
+
+        if (Math.abs(wrappedOffsetX) < closestDist) {
+          closestDist = Math.abs(wrappedOffsetX)
+          closestIndex = i
+        }
+
+        // Individual Pop Lerp Clamping
+        const targetPop = expandedIndex === i ? 1 : 0
+        popValuesRef.current[i] += (targetPop - popValuesRef.current[i]) * (POP_LERP * dt)
+        if (Math.abs(popValuesRef.current[i] - targetPop) < 0.001) {
+          popValuesRef.current[i] = targetPop
+        }
+        const popVal = popValuesRef.current[i]
+
+        const baseScale = Math.max(1 - absDist * 0.25, 0.5) 
+        const translateZ = Math.abs(normalizedDist) * -200 
+        const rotateY = normalizedDist * -45 
+        const baseY = arcBaselineY + Math.pow(absDist, 2) * 20
+        const baseOpacity = Math.max(0.1, 1 - absDist * 1.5)
+
+        const popX = windowCenterX 
+        const popY = containerHeight / 2 
+
+        // ── CACHED SIZE CALCULATIONS ──
+        let popWidth = layout.slideWidth
+        let popHeight = layout.slideHeight
+
+        if (!targetSizesRef.current[i]) {
+          if (layout.isMobile) {
+            const mobileScale = Math.min(
+              (containerWidth * 0.9) / layout.slideWidth,
+              (containerHeight * 0.9) / layout.slideHeight,
+              1.4 
+            )
+            targetSizesRef.current[i] = { w: layout.slideWidth * mobileScale, h: layout.slideHeight * mobileScale }
+          } else {
+            const imgEl = imgRefs.current[i]
+            if (imgEl && imgEl.naturalWidth && imgEl.naturalHeight) {
+              const screenMargin = 0.9
+              const fitScale = Math.min(
+                (containerWidth * screenMargin) / imgEl.naturalWidth,
+                (containerHeight * screenMargin) / imgEl.naturalHeight,
+                1 
+              )
+              targetSizesRef.current[i] = { w: imgEl.naturalWidth * fitScale, h: imgEl.naturalHeight * fitScale }
+            } else {
+              // Not loaded yet; fallback and leave un-cached so it attempts again next frame
+              popWidth = layout.slideWidth * 1.5
+              popHeight = layout.slideHeight * 1.5
+            }
+          }
+        }
+
+        if (targetSizesRef.current[i]) {
+          popWidth = targetSizesRef.current[i].w
+          popHeight = targetSizesRef.current[i].h
+        }
+
+        // ── SMOOTH INTERPOLATION ──
+        const currentWidth = layout.slideWidth + (popWidth - layout.slideWidth) * popVal
+        const currentHeight = layout.slideHeight + (popHeight - layout.slideHeight) * popVal
+        
+        const currentX = slideCenterX + (popX - slideCenterX) * popVal
+        const currentY = baseY + (popY - baseY) * popVal
+        const currentScale = baseScale + (1 - baseScale) * popVal
+        const currentTranslateZ = translateZ * (1 - popVal)
+        const currentRotateY = rotateY * (1 - popVal)
+
+        let finalOpacity = baseOpacity
+        if (expandedIndex !== null && expandedIndex !== i) {
+          finalOpacity = baseOpacity * (1 - globalPopRef.current * 0.8) 
+        } else {
+          finalOpacity = baseOpacity + (1 - baseOpacity) * popVal 
+        }
+
+        const zIndex = expandedIndex === i ? 1000 : Math.round((1 - absDist) * 100)
+
+        // ── HIGH-PERFORMANCE DOM WRITES (DIFFING) ──
+        // Limiting fraction digits cuts down string memory garbage heavily
+        const wStr = `${currentWidth.toFixed(1)}px`
+        const hStr = `${currentHeight.toFixed(1)}px`
+        const tStr = `translate3d(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px, ${currentTranslateZ.toFixed(2)}px) translate(-50%, -50%) rotateY(${currentRotateY.toFixed(2)}deg) scale(${currentScale.toFixed(3)})`
+        const oStr = finalOpacity.toFixed(3)
+        const zStr = zIndex.toString()
+
+        const ls = lastStylesRef.current[i]
+
+        if (ls.w !== wStr) { el.style.width = wStr; ls.w = wStr }
+        if (ls.h !== hStr) { el.style.height = hStr; ls.h = hStr }
+        if (ls.t !== tStr) { el.style.transform = tStr; ls.t = tStr }
+        if (ls.o !== oStr) { el.style.opacity = oStr; ls.o = oStr }
+        if (ls.z !== zStr) { el.style.zIndex = zStr; ls.z = zStr }
+      })
+
+      // Sync Active Title
+      if (closestIndex !== activeIndexRef.current && titleRef.current) {
+        activeIndexRef.current = closestIndex
+        const activeItem = displayItems[closestIndex]
+        
+        if (activeItem.text) {
+          titleRef.current.textContent = activeItem.text
+          gsap.killTweensOf(titleRef.current) 
+          gsap.fromTo(titleRef.current, 
+            { opacity: 0, y: 15 }, 
+            { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' }
+          )
+        } else {
+          titleRef.current.textContent = ''
+        }
+      }
+
+      if (titleRef.current) {
+        const titleOpacity = (1 - globalPopRef.current).toFixed(2)
+        if (titleRef.current.style.opacity !== titleOpacity) {
+          titleRef.current.style.opacity = titleOpacity
+        }
+      }
+    }
+
+    gsap.ticker.add(animate)
+    return () => gsap.ticker.remove(animate)
+  }, [displayItems, layout.isMobile, expandedIndex, layout.slideHeight, layout.slideWidth])
+
+  // ── INTERACTION HANDLERS ──
+  const handleCardClick = (index: number) => {
+    if (hasDragged.current) return 
+    
+    if (expandedIndex === index) {
+      setExpandedIndex(null)
+    } else {
+      setExpandedIndex(index)
+      scrollTarget.current += offsetsRef.current[index]
+    }
+  }
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (expandedIndex !== null) return 
+    const normalizedDelta = Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 50)
+    scrollTarget.current += normalizedDelta * 0.8
+  }
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (expandedIndex !== null) return 
+    isDragging.current = true
+    hasDragged.current = false 
+    touchStartX.current = e.clientX
+    if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging.current || expandedIndex !== null) return
+    const touchCurrentX = e.clientX
+    const deltaX = touchStartX.current - touchCurrentX
+    
+    if (Math.abs(deltaX) > 5) {
+      hasDragged.current = true
+    }
+
+    scrollTarget.current += deltaX * 1.2 
+    touchStartX.current = touchCurrentX
+  }
+
+  const handlePointerUp = () => {
+    isDragging.current = false
+    if (containerRef.current) containerRef.current.style.cursor = 'grab'
+  }
+
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    if (e.target === containerRef.current && expandedIndex !== null) {
+      setExpandedIndex(null)
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ perspective: '1200px', transformStyle: 'preserve-3d' }}
+      className="relative w-full h-full cursor-grab touch-none select-none overflow-hidden"
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onClick={handleBackgroundClick}
+    >
+      {displayItems.map((item, i) => (
+        <div
+          key={i}
+          ref={(el) => { cardRefs.current[i] = el }}
+          onClick={() => handleCardClick(i)}
+          className={`absolute top-0 left-0 shadow-[0_15px_30px_rgba(0,0,0,0.6)] will-change-transform rounded-2xl overflow-hidden transition-shadow duration-300 ${
+            expandedIndex === i ? 'cursor-zoom-out shadow-[0_30px_60px_rgba(0,0,0,0.8)]' : 'cursor-pointer hover:shadow-[0_20px_40px_rgba(0,0,0,0.8)]'
+          }`}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedIndex(null)
+            }}
+            className={`absolute z-[2000] text-white bg-black/40 backdrop-blur-md border border-white/20 hover:bg-black/60 rounded-full transition-all duration-300 
+              top-3 right-3 p-1.5 md:top-5 md:right-5 md:p-3
+              ${expandedIndex === i ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-90'}
+            `}
+            aria-label="Close"
+          >
+            <svg className="w-4 h-4 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <img
+            ref={(el) => { imgRefs.current[i] = el }}
+            src={item.image}
+            alt={item.text}
+            className="w-full h-full object-cover pointer-events-none rounded-2xl"
+            draggable={false}
+          />
+        </div>
+      ))}
+
+      <div className="absolute bottom-8 md:bottom-12 left-1/2 -translate-x-1/2 pointer-events-none text-center">
+        <p 
+          ref={titleRef}
+          className="text-white font-cinzel text-xl md:text-3xl font-semibold tracking-widest uppercase drop-shadow-[0_0_10px_rgba(0,0,0,0.8)]"
+        ></p>
+      </div>
+    </div>
+  )
 }
